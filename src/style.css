@@ -136,13 +136,13 @@ h3 { margin: 0; font-size: 17px; }
 
 /* Le fanion à la couleur du badge, planté sur le mur. */
 .pile { position: relative; padding-top: 16px; }
-.fanion { position: absolute; top: 0; right: 2px; width: 14px; height: 9px; border-left: 2px solid var(--craie); clip-path: polygon(0 0, 100% 50%, 0 100%); }
+.fanion { position: absolute; top: 0; right: 2px; width: 14px; height: 9px; box-shadow: inset 2px 0 0 var(--craie); clip-path: polygon(0 0, 100% 50%, 0 100%); }
 .mur { display: grid; grid-template-columns: repeat(7, 14px); gap: 2px; padding-bottom: 2px; }
 .scene.plusieurs .mur { grid-template-columns: repeat(7, 9px); }
 .brique { height: 8px; border-radius: 1px; background: transparent; outline: 1px dashed var(--trait); outline-offset: -1px; }
 .brique.posee { background: var(--balise); outline: none; box-shadow: inset 0 -2px 0 #B8501C; }
 /* Une brique posée depuis la dernière visite tombe à sa place. */
-.brique.nouvelle { animation: tomber 0.45s cubic-bezier(.3,1.4,.6,1) both; }
+.brique.nouvelle { animation: tomber 0.45s cubic-bezier(.16,1,.3,1) both; }
 @keyframes tomber { from { transform: translateY(-28px); opacity: 0; } to { transform: none; opacity: 1; } }
 /* Un mur fini prend la couleur de la lampe : il est prêt à rejoindre le mur du chef. */
 .poste.fini .brique.posee { background: var(--lampe); box-shadow: inset 0 -2px 0 var(--lampe-ombre); }
