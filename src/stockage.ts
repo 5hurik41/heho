@@ -1,6 +1,6 @@
 // L'historique, les chantiers et les réglages, dans IndexedDB : le service worker écrit, l'appli lit, hors ligne compris.
 import { gagnees, MEDAILLES, type Medaille } from './medailles'
-import { estFini, faites, type Cle, type Forfait, type Message, type Progression, type Situation } from './message'
+import { estFini, faites, type Forfait, type Message, type Progression, type Situation } from './message'
 
 const BASE = 'heho'
 const HISTORIQUE = 'historique'
@@ -92,37 +92,6 @@ export const viderHistorique = async (): Promise<void> => {
   await attendre(db.transaction(HISTORIQUE, 'readwrite').objectStore(HISTORIQUE).clear())
 }
 
-// Note la réponse du téléphone sur l'appel et tous ses rappels (même `attendue.appel`) : on n'y répond qu'une fois.
-export const marquerRepondu = async (appel: string, texte: string, maintenant = Date.now()): Promise<void> => {
-  const store = (await ouvrir()).transaction(HISTORIQUE, 'readwrite').objectStore(HISTORIQUE)
-  for (const m of (await attendre(store.getAll())) as Message[])
-    if (m.attendue?.appel === appel) await attendre(store.put({ ...m, repondu: { texte, date: maintenant } }))
-}
-
-// La dernière erreur du service worker, que Réglages montre : le téléphone n'a pas de console à lire.
-export const noterErreur = async (texte: string, maintenant = Date.now()): Promise<void> => {
-  const db = await ouvrir()
-  await attendre(db.transaction(REGLAGES, 'readwrite').objectStore(REGLAGES).put({ texte, date: maintenant }, 'derniereErreur'))
-}
-
-export const lireErreur = async (): Promise<{ texte: string; date: number } | undefined> => {
-  const db = await ouvrir()
-
-  return (await attendre(db.transaction(REGLAGES).objectStore(REGLAGES).get('derniereErreur'))) as { texte: string; date: number } | undefined
-}
-
-// La boîte aux lettres des réponses, reçue du PC (push `cle`), dans les réglages.
-export const ecrireBoite = async (c: Cle): Promise<void> => {
-  const db = await ouvrir()
-  await attendre(db.transaction(REGLAGES, 'readwrite').objectStore(REGLAGES).put(c, 'boite'))
-}
-
-export const lireBoite = async (): Promise<Cle | undefined> => {
-  const db = await ouvrir()
-
-  return (await attendre(db.transaction(REGLAGES).objectStore(REGLAGES).get('boite'))) as Cle | undefined
-}
-
 export const ecrireChantier = async (c: Chantier): Promise<void> => {
   const db = await ouvrir()
   await attendre(db.transaction(CHANTIERS, 'readwrite').objectStore(CHANTIERS).put(c))
@@ -204,6 +173,18 @@ export const lireReglage = async (s: Reglable): Promise<Reglage> => {
 export const ecrireReglage = async (s: Reglable, r: Reglage): Promise<void> => {
   const db = await ouvrir()
   await attendre(db.transaction(REGLAGES, 'readwrite').objectStore(REGLAGES).put(r, s))
+}
+
+// La dernière erreur du service worker, que Réglages montre : le téléphone n'a pas de console à lire.
+export const noterErreur = async (texte: string, maintenant = Date.now()): Promise<void> => {
+  const db = await ouvrir()
+  await attendre(db.transaction(REGLAGES, 'readwrite').objectStore(REGLAGES).put({ texte, date: maintenant }, 'derniereErreur'))
+}
+
+export const lireErreur = async (): Promise<{ texte: string; date: number } | undefined> => {
+  const db = await ouvrir()
+
+  return (await attendre(db.transaction(REGLAGES).objectStore(REGLAGES).get('derniereErreur'))) as { texte: string; date: number } | undefined
 }
 
 // Les briques que cette progression ajoute au mur d'activité : les étapes faites depuis la précédente du même

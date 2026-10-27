@@ -382,12 +382,3 @@ canvas.jeu { align-self: center; height: min(440px, 58dvh); aspect-ratio: 300 / 
 .medaille svg { width: 100%; max-width: 40px; height: auto; }
 .medaille.fermee svg { opacity: .8; }
 .grande-medaille svg { width: 72px; height: 72px; }
-
-/* ── Bloc 4 : répondre d'ici, dans la fiche d'un appel ── */
-.repondre { display: flex; flex-direction: column; gap: 10px; padding: 12px; border: 2px dashed var(--lampe); border-radius: var(--rayon); }
-.repondre .options { display: grid; grid-template-columns: repeat(auto-fit, minmax(120px, 1fr)); gap: 8px; }
-.repondre .code { min-height: 88px; font: inherit; }
-.repondre button:disabled { opacity: .5; }
-/* Refuser : l'orange balise, la seule action qui dit non. */
-.bouton.refus { background: var(--balise); color: var(--barre); }
-.repondu { padding: 10px 12px; border-left: 4px solid var(--lampe); background: var(--asphalte); font-weight: 700; }
