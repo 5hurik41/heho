@@ -3,10 +3,10 @@ import '@fontsource/jersey-10'
 import '@fontsource/atkinson-hyperlegible-next/400.css'
 import '@fontsource/atkinson-hyperlegible-next/700.css'
 import './style.css'
-import { carte, chantierActif, CROIX, echapper, scene } from './chantier'
+import { animerScene, carte, CROIX, echapper, murDuChef, scene } from './chantier'
 import { CLE_PUBLIQUE_VAPID } from './config'
 import { LIBELLES, SITUATIONS, TITRES, type Message, type Situation } from './message'
-import { ecrireReglage, effacerChantier, effacerMessage, lireChantiers, lireHistorique, lireReglage, viderHistorique } from './stockage'
+import { ecrireReglage, effacerChantier, effacerMessage, lireActivite, lireChantiers, lireHistorique, lireReglage, viderHistorique } from './stockage'
 
 const ecran = document.querySelector<HTMLElement>('#ecran')!
 const nav = document.querySelector<HTMLElement>('#nav')!
@@ -98,9 +98,10 @@ const ligne = (m: Message): string => `
   </article>`
 
 const historique = async (): Promise<void> => {
-  const [messages, chantiers] = await Promise.all([lireHistorique(), lireChantiers()])
+  const [messages, chantiers, activite] = await Promise.all([lireHistorique(), lireChantiers(), lireActivite()])
   ecran.innerHTML = `
-    ${scene(chantierActif(chantiers))}
+    ${scene(chantiers)}
+    ${murDuChef(activite)}
     ${
       messages.length
         ? `<h2>Derniers appels</h2>${messages.map(ligne).join('')}
@@ -126,6 +127,7 @@ const historique = async (): Promise<void> => {
     await viderHistorique()
     await historique()
   })
+  void animerScene(ecran)
 }
 
 // ── Chantiers ────────────────────────────────────────────────────────────
@@ -224,3 +226,9 @@ navigator.serviceWorker?.addEventListener('message', e => {
   if (type === 'maj' && (affiche === cible || affiche === 'historique')) void afficher()
 })
 void afficher()
+
+// À l'ouverture, les notifications « Terminé » des chantiers s'effacent : le mur du chef en garde la trace.
+void enregistrement()
+  .then(reg => reg?.getNotifications())
+  .then(notifs => notifs?.forEach(n => (n.data as { fini?: boolean } | null)?.fini && n.close()))
+  .catch(() => undefined)

@@ -7,6 +7,7 @@
   --craie: #EDEAE0;
   --craie-douce: #B9B6AC;
   --lampe: #F5C542;
+  --lampe-ombre: #B8862A;
   --balise: #FF7A2F;
   --rayon: 4px;
   --titre: 'Jersey 10', monospace;
@@ -102,13 +103,11 @@ h3 { margin: 0; font-size: 17px; }
 .carte-aide p { color: var(--craie-douce); font-size: 15px; }
 .carte-aide strong { color: var(--craie); }
 
-/* ── La scène de chantier : les ouvriers au travail devant un mur qui monte avec les étapes ── */
+/* ── La scène de chantier : un poste par session, ses ouvriers devant son mur, qui monte avec les étapes ── */
 .scene {
-  position: relative;
-  display: grid;
-  grid-template-columns: 1fr auto;
-  align-items: end;
-  gap: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
   padding: 14px 14px 0;
   background: var(--barre);
   border: 2px solid var(--trait);
@@ -120,22 +119,53 @@ h3 { margin: 0; font-size: 17px; }
 /* Le sol : la même bande d'asphalte à tirets jaunes que sous la barre. */
 .scene::after {
   content: '';
-  grid-column: 1 / -1;
   height: 8px;
   margin: 0 -14px;
   background: repeating-linear-gradient(90deg, var(--lampe) 0 12px, transparent 12px 24px), var(--asphalte);
 }
+.postes { display: flex; gap: 14px; }
+.poste { flex: 1 1 0; min-width: 0; display: flex; flex-direction: column; gap: 8px; }
+.ouvrage { display: flex; align-items: end; justify-content: space-between; gap: 8px; }
 .equipe { display: flex; align-items: end; gap: 4px; }
-.ouvrier { position: relative; width: 56px; height: 56px; }
+.ouvrier { position: relative; width: 56px; height: 56px; flex-shrink: 0; }
+.scene.plusieurs .ouvrier { width: 40px; height: 40px; }
 .ouvrier img { position: absolute; inset: 0; width: 100%; height: 100%; }
 /* Deux images qui alternent : l'outil se lève et retombe. */
 .ouvrier .image-2 { animation: alterner 0.9s steps(1) infinite; }
 @keyframes alterner { 0% { opacity: 0; } 50% { opacity: 1; } }
+
+/* Le fanion à la couleur du badge, planté sur le mur. */
+.pile { position: relative; padding-top: 16px; }
+.fanion { position: absolute; top: 0; right: 2px; width: 14px; height: 9px; border-left: 2px solid var(--craie); clip-path: polygon(0 0, 100% 50%, 0 100%); }
 .mur { display: grid; grid-template-columns: repeat(7, 14px); gap: 2px; padding-bottom: 2px; }
+.scene.plusieurs .mur { grid-template-columns: repeat(7, 9px); }
 .brique { height: 8px; border-radius: 1px; background: transparent; outline: 1px dashed var(--trait); outline-offset: -1px; }
 .brique.posee { background: var(--balise); outline: none; box-shadow: inset 0 -2px 0 #B8501C; }
-.legende { grid-column: 1 / -1; display: flex; flex-wrap: wrap; align-items: center; gap: 8px; font-size: 13px; color: var(--craie-douce); overflow-wrap: anywhere; }
-@media (prefers-reduced-motion: reduce) { .ouvrier .image-2 { animation: none; } }
+/* Une brique posée depuis la dernière visite tombe à sa place. */
+.brique.nouvelle { animation: tomber 0.45s cubic-bezier(.3,1.4,.6,1) both; }
+@keyframes tomber { from { transform: translateY(-28px); opacity: 0; } to { transform: none; opacity: 1; } }
+/* Un mur fini prend la couleur de la lampe : il est prêt à rejoindre le mur du chef. */
+.poste.fini .brique.posee { background: var(--lampe); box-shadow: inset 0 -2px 0 var(--lampe-ombre); }
+.mur.envol { position: fixed; z-index: 50; margin: 0; pointer-events: none; transform-origin: center; }
+.legende { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 8px; font-size: 13px; color: var(--craie-douce); overflow-wrap: anywhere; }
+
+/* ── Le mur du chef : une case par jour, comme le mur d'activité de GitHub ── */
+.mur-du-chef { display: flex; flex-direction: column; gap: 8px; padding: 12px; background: var(--carte); border: 2px solid var(--trait); border-radius: var(--rayon); }
+.grille-jours { display: grid; grid-auto-flow: column; grid-template-rows: repeat(7, 14px); grid-auto-columns: 14px; gap: 3px; }
+.case { border-radius: 2px; background: #2E3034; }
+.case.n1 { background: #5C4A1A; }
+.case.n2 { background: #8F6D1F; }
+.case.n3 { background: #C9962B; }
+.case.n4 { background: var(--lampe); }
+.case.avenir { background: transparent; }
+.case.aujourdhui { outline: 2px solid var(--craie); outline-offset: 1px; }
+.case.pulse { animation: eclairer 0.9s ease-out; }
+@keyframes eclairer { 0% { transform: scale(1.9); box-shadow: 0 0 14px 4px var(--lampe); } 100% { transform: none; box-shadow: none; } }
+.resume { font-size: 13px; color: var(--craie-douce); }
+
+@media (prefers-reduced-motion: reduce) {
+  .ouvrier .image-2, .brique.nouvelle, .case.pulse { animation: none; }
+}
 
 /* ── Les chantiers ── */
 .chantier { display: flex; flex-direction: column; gap: 10px; padding: 12px; background: var(--carte); border: 2px solid var(--trait); border-radius: var(--rayon); }

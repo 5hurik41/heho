@@ -6,14 +6,26 @@ const HISTORIQUE = 'historique'
 const REGLAGES = 'reglages'
 // La dernière progression de chaque session, une par session.
 const CHANTIERS = 'chantiers'
+// Le mur d'activité : par jour, les briques posées (étapes faites) et les murs finis.
+const ACTIVITE = 'activite'
 // Au-delà, les plus anciens messages sont effacés.
 const GARDER = 200
 
 export type Reglage = { son: boolean; vibration: boolean }
+// Un chantier tel que le téléphone le garde : la progression reçue, et l'heure où il a été vu terminé.
+export type Chantier = Progression & { finiA?: number }
+export type Journee = { jour: string; briques: number; murs: number }
+
+// Le jour, à l'heure du téléphone : « 2026-10-27 ».
+export const jourDe = (ms: number): string => {
+  const d = new Date(ms)
+
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
+}
 
 const ouvrir = (): Promise<IDBDatabase> =>
   new Promise((resoudre, rejeter) => {
-    const req = indexedDB.open(BASE, 2)
+    const req = indexedDB.open(BASE, 3)
     // Chaque version ajoute ce qui lui manque : un téléphone en version 1 garde son historique.
     req.onupgradeneeded = e => {
       const db = req.result
@@ -22,6 +34,7 @@ const ouvrir = (): Promise<IDBDatabase> =>
         db.createObjectStore(REGLAGES)
       }
       if (e.oldVersion < 2) db.createObjectStore(CHANTIERS, { keyPath: 'sessionId' })
+      if (e.oldVersion < 3) db.createObjectStore(ACTIVITE, { keyPath: 'jour' })
     }
     req.onsuccess = () => resoudre(req.result)
     req.onerror = () => rejeter(req.error)
@@ -59,17 +72,37 @@ export const viderHistorique = async (): Promise<void> => {
   await attendre(db.transaction(HISTORIQUE, 'readwrite').objectStore(HISTORIQUE).clear())
 }
 
-export const ecrireChantier = async (p: Progression): Promise<void> => {
+export const ecrireChantier = async (c: Chantier): Promise<void> => {
   const db = await ouvrir()
-  await attendre(db.transaction(CHANTIERS, 'readwrite').objectStore(CHANTIERS).put(p))
+  await attendre(db.transaction(CHANTIERS, 'readwrite').objectStore(CHANTIERS).put(c))
+}
+
+export const lireChantier = async (sessionId: string): Promise<Chantier | undefined> => {
+  const db = await ouvrir()
+
+  return (await attendre(db.transaction(CHANTIERS).objectStore(CHANTIERS).get(sessionId))) as Chantier | undefined
 }
 
 // Du plus récemment mis à jour au plus ancien.
-export const lireChantiers = async (): Promise<Progression[]> => {
+export const lireChantiers = async (): Promise<Chantier[]> => {
   const db = await ouvrir()
-  const tous = (await attendre(db.transaction(CHANTIERS).objectStore(CHANTIERS).getAll())) as Progression[]
+  const tous = (await attendre(db.transaction(CHANTIERS).objectStore(CHANTIERS).getAll())) as Chantier[]
 
   return tous.sort((a, b) => b.date - a.date)
+}
+
+export const ajouterActivite = async (jour: string, briques: number, murs: number): Promise<void> => {
+  const db = await ouvrir()
+  const store = db.transaction(ACTIVITE, 'readwrite').objectStore(ACTIVITE)
+  const avant = ((await attendre(store.get(jour))) as Journee | undefined) ?? { jour, briques: 0, murs: 0 }
+  await attendre(store.put({ jour, briques: avant.briques + briques, murs: avant.murs + murs }))
+}
+
+export const lireActivite = async (): Promise<Map<string, Journee>> => {
+  const db = await ouvrir()
+  const tous = (await attendre(db.transaction(ACTIVITE).objectStore(ACTIVITE).getAll())) as Journee[]
+
+  return new Map(tous.map(j => [j.jour, j]))
 }
 
 export const effacerChantier = async (sessionId: string): Promise<void> => {

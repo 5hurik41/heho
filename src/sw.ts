@@ -1,7 +1,7 @@
 /// <reference lib="webworker" />
 // Le service worker : reçoit le push, montre la notification, garde le message dans l'historique.
 import { enCours, estFini, faites, image, lireMessage, lireProgression, titre, type Message, type Progression } from './message'
-import { ajouterMessage, ecrireChantier, lireReglage } from './stockage'
+import { ajouterActivite, ajouterMessage, ecrireChantier, jourDe, lireChantier, lireReglage } from './stockage'
 
 declare const self: ServiceWorkerGlobalScope
 
@@ -83,9 +83,26 @@ const montrerProgression = async (p: Progression): Promise<void> => {
     icon: './icones/icone-192.png',
     badge: './icones/badge-96.png',
     timestamp: p.date,
-    data: { ecran: 'chantiers' },
+    // `fini` : la notification « Terminé » s'efface au prochain push ou à la prochaine ouverture de l'appli.
+    data: { ecran: 'chantiers', fini: estFini(p) },
   }
   await self.registration.showNotification(`${p.session} · ${p.titre ?? 'Chantier en cours'}`, options)
+}
+
+// Les briques que cette progression ajoute au mur d'activité : les étapes faites depuis la précédente du même
+// plan (un autre titre est un nouveau plan), et un mur de plus s'il vient d'être fini.
+const recevoirProgression = async (p: Progression): Promise<void> => {
+  const avant = await lireChantier(p.sessionId)
+  const memePlan = avant !== undefined && avant.titre === p.titre
+  const briques = Math.max(0, faites(p) - (memePlan ? faites(avant) : 0))
+  const vientDeFinir = estFini(p) && !(memePlan && estFini(avant))
+  await ecrireChantier({ ...p, finiA: vientDeFinir ? p.date : memePlan ? avant.finiA : undefined })
+  if (briques || vientDeFinir) await ajouterActivite(jourDe(p.date), briques, vientDeFinir ? 1 : 0)
+}
+
+const effacerLesTermines = async (sauf?: string): Promise<void> => {
+  for (const n of await self.registration.getNotifications())
+    if ((n.data as { fini?: boolean } | null)?.fini && n.tag !== sauf) n.close()
 }
 
 const prevenirLesFenetres = async (ecran: string): Promise<void> => {
@@ -101,7 +118,14 @@ self.addEventListener('push', e => {
   }
   const p = lireProgression(brut)
   if (p) {
-    e.waitUntil(ecrireChantier(p).then(() => montrerProgression(p)).then(() => prevenirLesFenetres('chantiers')))
+    e.waitUntil(
+      (async () => {
+        await recevoirProgression(p)
+        await effacerLesTermines(`chantier-${p.sessionId}`)
+        await montrerProgression(p)
+        await prevenirLesFenetres('chantiers')
+      })(),
+    )
 
     return
   }
@@ -109,6 +133,7 @@ self.addEventListener('push', e => {
   if (!m) return
   e.waitUntil(
     (async () => {
+      await effacerLesTermines()
       await ajouterMessage(m)
       await montrer(m)
       await prevenirLesFenetres('historique')
