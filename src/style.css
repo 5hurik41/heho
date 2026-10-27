@@ -16,9 +16,12 @@
 
 * { box-sizing: border-box; }
 [hidden] { display: none !important; }
+/* La page tient dans l'écran : seule la liste défile, l'en-tête et la barre du bas restent visibles. */
 html, body { height: 100%; }
 body {
   margin: 0;
+  height: 100dvh;
+  overflow: hidden;
   display: flex;
   flex-direction: column;
   background: var(--asphalte);
@@ -43,7 +46,10 @@ button { font: inherit; }
 /* Le marquage au sol : pointillé jaune sous la barre. */
 .marquage { height: 10px; background: repeating-linear-gradient(90deg, var(--lampe) 0 12px, transparent 12px 24px), var(--barre); }
 
-main { flex: 1; padding: 20px 16px 24px; display: flex; flex-direction: column; gap: 12px; }
+main { flex: 1; min-height: 0; overflow-y: auto; overscroll-behavior: contain; padding: 20px 16px 24px; display: flex; flex-direction: column; gap: 12px; }
+.barre, .marquage, .nav { flex-shrink: 0; }
+/* Dans une colonne qui défile, les cartes gardent leur hauteur au lieu de se tasser. */
+main > * { flex-shrink: 0; }
 h1, h2 { margin: 0; font: 30px/1 var(--titre); letter-spacing: .02em; }
 p { margin: 0; }
 .aide { color: var(--craie-douce); }
