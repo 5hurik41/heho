@@ -5,7 +5,7 @@ import '@fontsource/atkinson-hyperlegible-next/700.css'
 import './style.css'
 import { animerScene, carte, CROIX, echapper, horodatage, murDuChef, rafraichirHeures, scene } from './chantier'
 import { CLE_PUBLIQUE_VAPID } from './config'
-import { ficheAppel, ficheBatiment, ouvrirFeuille } from './fiche'
+import { fermerFeuille, ficheAppel, ficheBatiment, ouvrirFeuille } from './fiche'
 import { filtrer, pastilles, type Filtres } from './filtres'
 import { ecranForfait } from './forfait'
 import { ATTENTES, LIBELLES, OUVRIER, REGLABLES, TITRES, type Message, type Situation } from './message'
@@ -111,17 +111,57 @@ const ligne = (m: Message): string => `
 // Les filtres choisis tiennent tant que l'appli reste ouverte.
 const filtres: Filtres = { sessions: new Set(), types: new Set() }
 
-const rangeeFiltres = (messages: Message[]): string => {
+const nbFiltres = (): number => filtres.sessions.size + filtres.types.size
+
+// Le titre de la liste et, à droite, le bouton qui ouvre les filtres dans la feuille du bas ; sous le titre, les
+// filtres actifs en une ligne. Le bouton n'apparaît que s'il y a de quoi trier.
+const teteListe = (messages: Message[]): string => {
   const { sessions, types } = pastilles(messages, filtres)
-  if (sessions.length < 2 && types.length < 2 && !filtres.sessions.size && !filtres.types.size) return ''
-  const actif = filtres.sessions.size + filtres.types.size > 0
+  const n = nbFiltres()
+  const bouton =
+    sessions.length > 1 || types.length > 1 || n
+      ? `<button class="filtrer${n ? ' actif' : ''}" type="button" id="filtrer" aria-haspopup="dialog">Filtrer${n ? ` · ${n}` : ''}</button>`
+      : ''
+  const libelles = [...filtres.sessions, ...[...filtres.types].map(t => types.find(x => x.type === t)?.libelle ?? t)]
 
   return `
-    <div class="filtres" role="group" aria-label="Filtrer les appels">
+    <div class="tete-liste"><h2>Derniers appels</h2>${bouton}</div>
+    ${n ? `<p class="resume-filtres"><span>${libelles.map(echapper).join(' · ')}</span><button class="effacer" type="button" id="sans-filtre" aria-label="Retirer les filtres">${CROIX}</button></p>` : ''}`
+}
+
+// La feuille des filtres : les pastilles s'allument au toucher ; la liste suit à la fermeture de la feuille.
+const ouvrirFiltres = (messages: Message[]): void => {
+  const { sessions, types } = pastilles(messages, filtres)
+  const corps = ouvrirFeuille(
+    `
+    <h2 id="feuille-titre">Filtrer les appels</h2>
+    <h3>Sessions</h3>
+    <div class="filtres">
       ${sessions.map(s => `<button class="pastille" type="button" data-session="${echapper(s.nom)}" aria-pressed="${filtres.sessions.has(s.nom)}" style="--couleur:${s.couleur}">${echapper(s.nom)}</button>`).join('')}
+    </div>
+    <h3>Types</h3>
+    <div class="filtres">
       ${types.map(t => `<button class="pastille type" type="button" data-type="${t.type}" aria-pressed="${filtres.types.has(t.type)}">${t.libelle}</button>`).join('')}
-      ${actif ? `<button class="pastille aucun" type="button" id="sans-filtre">Tout voir</button>` : ''}
-    </div>`
+    </div>
+    <div class="pied-feuille">
+      <button class="bouton second" type="button" id="tout-voir">Tout voir</button>
+      <button class="bouton" type="button" id="valider">Voir les appels</button>
+    </div>`,
+    () => void historique(),
+  )
+  corps.querySelectorAll<HTMLButtonElement>('.pastille').forEach(b =>
+    b.addEventListener('click', () => {
+      const [ensemble, valeur] = b.dataset.session !== undefined ? [filtres.sessions, b.dataset.session] : [filtres.types, b.dataset.type!]
+      if (!ensemble.delete(valeur)) ensemble.add(valeur)
+      b.setAttribute('aria-pressed', String(ensemble.has(valeur)))
+    }),
+  )
+  corps.querySelector('#tout-voir')!.addEventListener('click', () => {
+    filtres.sessions.clear()
+    filtres.types.clear()
+    fermerFeuille()
+  })
+  corps.querySelector('#valider')!.addEventListener('click', fermerFeuille)
 }
 
 const historique = async (): Promise<void> => {
@@ -133,7 +173,7 @@ const historique = async (): Promise<void> => {
     ${murDuChef(activite)}
     ${
       messages.length
-        ? `<h2>Derniers appels</h2>${rangeeFiltres(messages)}
+        ? `${teteListe(messages)}
            ${affiches.length ? affiches.map(ligne).join('') : `<p class="aide">Aucun appel pour ces filtres.</p>`}
            ${isFiltre ? '' : `<button class="bouton second" id="vider" type="button">Tout effacer</button>`}`
         : `<h2>Rien pour l'instant</h2><p class="aide">Les appels du PC s'afficheront ici, même hors ligne.</p>`
@@ -162,13 +202,7 @@ const historique = async (): Promise<void> => {
     el.addEventListener('click', ouvrir)
     el.addEventListener('keydown', e => (e.key === 'Enter' || e.key === ' ') && (e.preventDefault(), ouvrir()))
   })
-  ecran.querySelectorAll<HTMLButtonElement>('.pastille[data-session], .pastille[data-type]').forEach(b =>
-    b.addEventListener('click', () => {
-      const [ensemble, valeur] = b.dataset.session !== undefined ? [filtres.sessions, b.dataset.session] : [filtres.types, b.dataset.type!]
-      if (!ensemble.delete(valeur)) ensemble.add(valeur)
-      void historique()
-    }),
-  )
+  ecran.querySelector('#filtrer')?.addEventListener('click', () => ouvrirFiltres(messages))
   ecran.querySelector('#sans-filtre')?.addEventListener('click', () => {
     filtres.sessions.clear()
     filtres.types.clear()

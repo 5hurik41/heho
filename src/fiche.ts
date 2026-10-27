@@ -85,8 +85,16 @@ const creer = (): HTMLDialogElement => {
   return d
 }
 
-export const ouvrirFeuille = (contenu: string): void => {
+// Ouvre la feuille sur ce contenu et rend son corps, pour y brancher des boutons ; `aLaFermeture` est appelé une
+// fois, quelle que soit la façon de la fermer.
+export const ouvrirFeuille = (contenu: string, aLaFermeture?: () => void): HTMLElement => {
   feuille ??= creer()
-  feuille.querySelector('.feuille-corps')!.innerHTML = contenu
+  const corps = feuille.querySelector<HTMLElement>('.feuille-corps')!
+  corps.innerHTML = contenu
+  if (aLaFermeture) feuille.addEventListener('close', aLaFermeture, { once: true })
   feuille.showModal()
+
+  return corps
 }
+
+export const fermerFeuille = (): void => feuille?.close()
