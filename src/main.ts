@@ -24,6 +24,9 @@ import {
   viderHistorique,
 } from './stockage'
 
+// L'heure du build, écrite par vite.config.ts : Réglages la montre, pour savoir quelle version tourne.
+declare const __CONSTRUIT__: string
+
 const ecran = document.querySelector<HTMLElement>('#ecran')!
 const nav = document.querySelector<HTMLElement>('#nav')!
 const etat = document.querySelector<HTMLElement>('#etat')!
@@ -270,7 +273,8 @@ const reglages = async (): Promise<void> => {
         (parfois appelé « Priorité élevée »).</p>
     </section>
     <button class="bouton" id="test" type="button">Envoyer une notification de test</button>
-    <p class="aide" id="message" role="status"></p>`
+    <p class="aide" id="message" role="status"></p>
+    <p class="aide version">Version du ${new Date(__CONSTRUIT__).toLocaleString('fr-FR', { day: 'numeric', month: 'long', hour: '2-digit', minute: '2-digit' })}</p>`
   ecran.querySelectorAll<HTMLInputElement>('input[type=checkbox]').forEach(caseACocher =>
     caseACocher.addEventListener('change', async () => {
       const s = caseACocher.dataset.s as Situation
@@ -337,3 +341,14 @@ void enregistrement()
 
 // Les heures relatives (« il y a 3 min ») avancent tant que l'appli reste ouverte.
 setInterval(() => rafraichirHeures(ecran), 30_000)
+
+// Une nouvelle version publiée : à chaque retour sur l'appli, le navigateur cherche un nouveau service worker, et
+// quand celui-ci prend la main la page se recharge. Sans cela, l'appli reprise depuis l'arrière-plan gardait
+// l'ancienne page. Pas de rechargement à la toute première installation, qui n'avait pas de version d'avant.
+if ('serviceWorker' in navigator && !import.meta.env.DEV) {
+  const avaitUneVersion = navigator.serviceWorker.controller !== null
+  navigator.serviceWorker.addEventListener('controllerchange', () => avaitUneVersion && location.reload())
+  document.addEventListener('visibilitychange', () => {
+    if (document.visibilityState === 'visible') void navigator.serviceWorker.getRegistration().then(r => r?.update()).catch(() => undefined)
+  })
+}

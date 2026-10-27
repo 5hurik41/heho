@@ -17,7 +17,8 @@ const CACHE = 'heho-__VERSION__'
 self.addEventListener('install', e => {
   e.waitUntil(
     (async () => {
-      await (await caches.open(CACHE)).addAll(FICHIERS)
+      // `reload` : GitHub Pages sert ses fichiers avec max-age=600, le cache HTTP rendrait l'ancienne page.
+      await (await caches.open(CACHE)).addAll(FICHIERS.map(f => new Request(f, { cache: 'reload' })))
       await self.skipWaiting()
     })(),
   )
@@ -32,8 +33,8 @@ self.addEventListener('activate', e => {
   )
 })
 
-// La page : le réseau d'abord, pour avoir la dernière version ; sans réseau, celle du cache.
-// Le reste porte une empreinte ou change rarement : le cache d'abord.
+// La page : le réseau d'abord, pour avoir la dernière version, en revalidant le cache HTTP (max-age=600 sur
+// GitHub Pages) ; sans réseau, celle du cache. Le reste porte une empreinte ou change rarement : le cache d'abord.
 self.addEventListener('fetch', e => {
   const req = e.request
   if (req.method !== 'GET' || new URL(req.url).origin !== self.location.origin) return
@@ -42,7 +43,7 @@ self.addEventListener('fetch', e => {
       const cache = await caches.open(CACHE)
       if (req.mode === 'navigate') {
         try {
-          return await fetch(req)
+          return await fetch(new Request(req, { cache: 'no-cache' }))
         } catch {
           return (await cache.match('./')) ?? Response.error()
         }

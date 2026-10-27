@@ -33,6 +33,8 @@ const listeHorsLigne = (): Plugin => ({
 // sw.js, à la racine, pour que sa portée couvre toute l'appli.
 export default defineConfig({
   base: './',
+  // L'heure du build, affichée dans Réglages (src/main.ts).
+  define: { __CONSTRUIT__: JSON.stringify(new Date().toISOString()) },
   plugins: [listeHorsLigne()],
   build: {
     rollupOptions: {
