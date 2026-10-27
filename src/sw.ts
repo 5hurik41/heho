@@ -1,6 +1,6 @@
 /// <reference lib="webworker" />
 // Le service worker : reçoit le push, montre la notification, garde le message dans l'historique.
-import { enCours, estFini, faites, image, lireCle, lireForfait, lireMessage, lireProgression, lireSauvegarde, titre, type Message, type Progression } from './message'
+import { enCours, estFini, faites, image, lireBoiteJointe, lireCle, lireForfait, lireMessage, lireProgression, lireSauvegarde, titre, type Message, type Progression } from './message'
 import { dire, peutRepondre, repondre, type Contenu } from './reponse'
 import type { Medaille } from './medailles'
 import {
@@ -237,6 +237,9 @@ self.addEventListener('push', e => {
       // Un lancement de tâche de fond livré après sa fin (téléphone en veille) va dans l'historique, sans écraser
       // la notification de fin : on remontre celle-ci, sans bruit (Chrome veut une notification par push).
       const fin = m.situation === 'fond' && m.tache ? (await lireHistorique()).find(x => x.tache === m.tache && x.situation === 'fond-fini') : undefined
+      // La boîte aux lettres jointe à l'appel, rangée avant la notification : ses boutons de réponse en dépendent.
+      const boite = lireBoiteJointe(brut)
+      if (boite) await ecrireBoite(boite).catch(() => undefined)
       // Un rappel arrivé après la réponse du téléphone garde la trace de cette réponse.
       const deja = m.attendue && (await lireHistorique()).find(x => x.attendue?.appel === m.attendue?.appel && x.repondu)
       await ajouterMessage(deja?.repondu ? { ...m, repondu: deja.repondu } : m)

@@ -61,6 +61,15 @@ export const lireCle = (brut: unknown): Cle | null => {
   return { v: 1, type: 'cle', sessionId: 'cle', canal: c.canal, cle: String(c.cle), date: c.date }
 }
 
+// La boîte aux lettres qu'un appel qui attend une réponse emporte (`avecBoite` dans web-push.mjs) : le service worker
+// la range, lireMessage ne la garde pas (pas de clé dans l'historique).
+export const lireBoiteJointe = (brut: unknown): Cle | null => {
+  if (typeof brut !== 'object' || brut === null) return null
+  const m = brut as { boite?: { canal?: unknown; cle?: unknown }; date?: unknown }
+
+  return m.boite ? lireCle({ v: 1, type: 'cle', canal: m.boite.canal, cle: m.boite.cle, date: m.date }) : null
+}
+
 // ── Le forfait : joint à chaque push quand le PC le connaît (BRIEF.md, « Forfait ») ──
 // Chrome exige une notification par push : l'état du forfait voyage avec les autres envois, jamais seul.
 

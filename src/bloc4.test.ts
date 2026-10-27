@@ -1,7 +1,7 @@
 import 'fake-indexeddb/auto'
 import { IDBFactory } from 'fake-indexeddb'
 import { beforeEach, describe, expect, test } from 'vitest'
-import { lireCle, lireMessage, type Cle, type Message } from './message'
+import { lireBoiteJointe, lireCle, lireMessage, type Cle, type Message } from './message'
 import { fermer, peutRepondre, repondre, REPONSE_MS } from './reponse'
 import { ajouterMessage, ecrireBoite, lireHistorique } from './stockage'
 
@@ -89,4 +89,11 @@ describe('répondre', () => {
     expect(peutRepondre({ ...appel('a1', 0, t), repondu: { texte: 'B', date: t } }, CLE, t)).toBe(false)
     expect(peutRepondre({ ...appel('a1', 0, t), attendue: undefined }, CLE, t)).toBe(false)
   })
+})
+
+test('la boîte jointe à un appel se lit à part, et ne reste pas dans le message gardé', () => {
+  const brut = { ...appel('a1'), boite: { canal: CLE.canal, cle: CLE.cle } }
+  expect(lireBoiteJointe(brut)).toEqual({ ...CLE, date: brut.date })
+  expect(lireMessage(brut)).not.toHaveProperty('boite')
+  expect(lireBoiteJointe(appel('a1'))).toBeNull()
 })
