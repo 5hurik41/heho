@@ -8,8 +8,50 @@ declare const self: ServiceWorkerGlobalScope
 // Options que Chrome Android comprend mais que lib.webworker ne décrit pas toutes.
 type Options = NotificationOptions & { image?: string; renotify?: boolean; vibrate?: number[]; timestamp?: number }
 
-self.addEventListener('install', () => void self.skipWaiting())
-self.addEventListener('activate', e => e.waitUntil(self.clients.claim()))
+// ── Hors ligne : l'appli entière en cache, pour lire l'historique sans réseau ──
+
+// Remplis au build par vite.config.ts (listeHorsLigne).
+const FICHIERS = '__FICHIERS__'.split('|')
+const CACHE = 'heho-__VERSION__'
+
+self.addEventListener('install', e => {
+  e.waitUntil(
+    (async () => {
+      await (await caches.open(CACHE)).addAll(FICHIERS)
+      await self.skipWaiting()
+    })(),
+  )
+})
+
+self.addEventListener('activate', e => {
+  e.waitUntil(
+    (async () => {
+      for (const nom of await caches.keys()) if (nom.startsWith('heho-') && nom !== CACHE) await caches.delete(nom)
+      await self.clients.claim()
+    })(),
+  )
+})
+
+// La page : le réseau d'abord, pour avoir la dernière version ; sans réseau, celle du cache.
+// Le reste porte une empreinte ou change rarement : le cache d'abord.
+self.addEventListener('fetch', e => {
+  const req = e.request
+  if (req.method !== 'GET' || new URL(req.url).origin !== self.location.origin) return
+  e.respondWith(
+    (async () => {
+      const cache = await caches.open(CACHE)
+      if (req.mode === 'navigate') {
+        try {
+          return await fetch(req)
+        } catch {
+          return (await cache.match('./')) ?? Response.error()
+        }
+      }
+
+      return (await cache.match(req)) ?? fetch(req)
+    })(),
+  )
+})
 
 const montrer = async (m: Message): Promise<void> => {
   const reglage = await lireReglage(m.situation)
