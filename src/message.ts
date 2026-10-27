@@ -1,8 +1,13 @@
 // Le contenu d'un push, tel que le mod notify-worker l'envoie (chiffré en aes128gcm, JSON une fois déchiffré).
 // C'est la seule définition du format : le mod s'y réfère.
 
-export const SITUATIONS = ['question', 'permission', 'done', 'recap', 'budget'] as const
+// « fond » : une tâche lancée en arrière-plan (notification discrète) ; « fond-fini » : la même, terminée.
+export const SITUATIONS = ['question', 'permission', 'done', 'recap', 'budget', 'fond', 'fond-fini'] as const
 export type Situation = (typeof SITUATIONS)[number]
+// Celles qui attendent une réponse de la personne : l'historique les marque d'une bande de rubalise.
+export const ATTENTES: readonly Situation[] = ['question', 'permission', 'recap']
+// Celles dont on règle le son et la vibration : le lancement d'une tâche de fond reste toujours discret.
+export const REGLABLES: readonly Situation[] = SITUATIONS.filter(s => s !== 'fond')
 
 export type Message = {
   v: 1
@@ -19,6 +24,8 @@ export type Message = {
   rappel: number
   // Millisecondes depuis 1970, heure du PC.
   date: number
+  // Une tâche de fond : l'id de l'appel qui l'a lancée. Sa fin remplace la notification de son lancement.
+  tache?: string
 }
 
 // Le PC envoie la situation, l'appli écrit le titre (BRIEF.md, « Langue de l'interface »).
@@ -28,6 +35,8 @@ export const TITRES: Record<Situation, string> = {
   done: 'Claude a fini',
   recap: 'Récap avec des questions',
   budget: 'Alerte budget',
+  fond: 'Tâche de fond lancée',
+  'fond-fini': 'Tâche de fond terminée',
 }
 
 // Le libellé court, dans l'historique.
@@ -37,6 +46,20 @@ export const LIBELLES: Record<Situation, string> = {
   done: 'Terminé',
   recap: 'Récap',
   budget: 'Budget',
+  fond: 'En fond',
+  'fond-fini': 'Fond fini',
+}
+
+// L'ouvrier de chaque situation (public/ouvriers/, public/notifications/) : les deux temps d'une tâche de fond
+// partagent le coursier.
+export const OUVRIER: Record<Situation, string> = {
+  question: 'question',
+  permission: 'permission',
+  done: 'done',
+  recap: 'recap',
+  budget: 'budget',
+  fond: 'fond',
+  'fond-fini': 'fond',
 }
 
 export const titre = (m: Message): string => `${m.session} · ${TITRES[m.situation]}`
@@ -49,7 +72,7 @@ export const BADGES = ['cba6f7', 'a6e3a1', 'fab387', '89b4fa', 'f5c2e7', '94e2d5
 export const image = (m: Message): string | undefined => {
   const badge = m.couleur.slice(1).toLowerCase()
 
-  return BADGES.includes(badge) ? `./notifications/${m.situation}-${badge}.png` : undefined
+  return BADGES.includes(badge) ? `./notifications/${OUVRIER[m.situation]}-${badge}.png` : undefined
 }
 
 const chaine = (x: unknown): x is string => typeof x === 'string' && x.length > 0 && x.length < 2000
@@ -64,6 +87,7 @@ export const lireMessage = (brut: unknown): Message | null => {
   if (typeof m.couleur !== 'string' || !/^#[0-9a-f]{6}$/i.test(m.couleur)) return null
   if (!SITUATIONS.includes(m.situation as Situation)) return null
   if (!nombre(m.rappel) || !nombre(m.date)) return null
+  if (m.tache !== undefined && !chaine(m.tache)) return null
 
   return {
     v: 1,
@@ -75,6 +99,7 @@ export const lireMessage = (brut: unknown): Message | null => {
     texte: m.texte,
     rappel: m.rappel,
     date: m.date,
+    ...(m.tache ? { tache: m.tache } : {}),
   }
 }
 

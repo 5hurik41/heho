@@ -28,6 +28,18 @@ export const ilYa = (date: number): string => {
   return h < 24 ? `il y a ${h} h` : new Date(date).toLocaleDateString('fr-FR', { day: 'numeric', month: 'short' })
 }
 
+// Une heure relative (« il y a 3 min »), l'heure exacte au survol ; rafraichirHeures la tient à jour.
+export const horodatage = (date: number): string => {
+  const d = new Date(date)
+  const exacte = d.toLocaleString('fr-FR', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })
+
+  return `<time class="heure" datetime="${d.toISOString()}" data-date="${date}" title="${exacte}">${ilYa(date)}</time>`
+}
+
+export const rafraichirHeures = (racine: HTMLElement): void => {
+  for (const t of racine.querySelectorAll<HTMLTimeElement>('time[data-date]')) t.textContent = ilYa(Number(t.dataset.date))
+}
+
 // ── Ce que ce téléphone a déjà vu, pour n'animer que le nouveau (stockage du navigateur, facultatif) ──
 
 const lireVu = <T>(cle: string, defaut: T): T => {
@@ -233,7 +245,8 @@ export const murDuChef = (activite: Map<string, Journee>): string => {
     serie += 1
     curseur.setDate(curseur.getDate() - 1)
   }
-  const resume = `Cette semaine : ${semaine.briques} brique${semaine.briques > 1 ? 's' : ''} · ${semaine.murs} mur${semaine.murs > 1 ? 's' : ''} fini${semaine.murs > 1 ? 's' : ''}${serie > 1 ? ` · série de ${serie} jours` : ''}`
+  // Les mots du quartier : une étape faite est un étage, un chantier fini un bâtiment (dans la base, « briques » et « murs »).
+  const resume = `Cette semaine : ${semaine.briques} étage${semaine.briques > 1 ? 's' : ''} · ${semaine.murs} bâtiment${semaine.murs > 1 ? 's' : ''}${serie > 1 ? ` · série de ${serie} jours` : ''}`
 
   return `
     <section class="mur-du-chef">
@@ -318,7 +331,7 @@ export const carte = (c: Chantier): string => {
       <div class="meta">
         <span class="badge" style="background:${c.couleur}">${echapper(c.session)}</span>
         <span class="situation">${estFini(c) ? 'Terminé' : `${faites(c)}/${total}`}</span>
-        <span class="heure">${ilYa(c.date)}</span>
+        ${horodatage(c.date)}
         <button class="effacer" type="button" data-chantier="${echapper(c.sessionId)}" aria-label="Retirer ce chantier">${CROIX}</button>
       </div>
       <h3>${echapper(c.titre ?? 'Chantier')}</h3>

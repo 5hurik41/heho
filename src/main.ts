@@ -3,9 +3,10 @@ import '@fontsource/jersey-10'
 import '@fontsource/atkinson-hyperlegible-next/400.css'
 import '@fontsource/atkinson-hyperlegible-next/700.css'
 import './style.css'
-import { animerScene, carte, CROIX, echapper, murDuChef, scene } from './chantier'
+import { animerScene, carte, CROIX, echapper, horodatage, murDuChef, rafraichirHeures, scene } from './chantier'
 import { CLE_PUBLIQUE_VAPID } from './config'
-import { LIBELLES, SITUATIONS, TITRES, type Message, type Situation } from './message'
+import { ATTENTES, LIBELLES, OUVRIER, REGLABLES, TITRES, type Message, type Situation } from './message'
+import { picto } from './pictos'
 import { ecrireReglage, effacerChantier, effacerMessage, lireActivite, lireChantiers, lireHistorique, lireQuartier, lireReglage, viderHistorique } from './stockage'
 
 const ecran = document.querySelector<HTMLElement>('#ecran')!
@@ -74,23 +75,17 @@ const montrerCode = (abo: PushSubscription): void => {
 
 // ── Historique ───────────────────────────────────────────────────────────
 
-const heure = (date: number): string => {
-  const d = new Date(date)
-  const memeJour = d.toDateString() === new Date().toDateString()
-
-  return memeJour
-    ? d.toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' })
-    : d.toLocaleDateString('fr-FR', { day: 'numeric', month: 'short' })
-}
+// Une carte d'appel. Celles qui attendent une réponse portent la rubalise ; une tâche de fond, des pointillés.
+const genre = (s: Situation): string => (ATTENTES.includes(s) ? ' attente' : s === 'fond' || s === 'fond-fini' ? ' fond' : '')
 
 const ligne = (m: Message): string => `
-  <article class="ligne">
-    <div class="vignette" style="background:${m.couleur}"><img src="./ouvriers/${m.situation}.svg" alt=""></div>
+  <article class="ligne${genre(m.situation)}">
+    <div class="vignette" style="background:${m.couleur}"><img src="./ouvriers/${OUVRIER[m.situation]}.svg" alt="">${picto(m.situation)}</div>
     <div class="corps">
       <div class="meta">
         <span class="badge" style="background:${m.couleur}">${echapper(m.session)}</span>
         <span class="situation">${LIBELLES[m.situation]}</span>
-        <span class="heure">${heure(m.date)}</span>
+        ${horodatage(m.date)}
         <button class="effacer" type="button" data-message="${echapper(m.id)}" aria-label="Effacer cet appel">${CROIX}</button>
       </div>
       <p class="texte">${echapper(m.texte)}${m.rappel ? ` · rappel ${m.rappel}/3` : ''}</p>
@@ -149,7 +144,7 @@ const chantiers = async (): Promise<void> => {
 
 const reglages = async (): Promise<void> => {
   const lignes = await Promise.all(
-    SITUATIONS.map(async s => {
+    REGLABLES.map(async s => {
       const r = await lireReglage(s)
 
       return `
@@ -232,3 +227,6 @@ void enregistrement()
   .then(reg => reg?.getNotifications())
   .then(notifs => notifs?.forEach(n => (n.data as { fini?: boolean } | null)?.fini && n.close()))
   .catch(() => undefined)
+
+// Les heures relatives (« il y a 3 min ») avancent tant que l'appli reste ouverte.
+setInterval(() => rafraichirHeures(ecran), 30_000)

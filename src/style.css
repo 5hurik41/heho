@@ -81,8 +81,17 @@ p { margin: 0; }
 }
 
 .ligne { display: flex; gap: 12px; align-items: center; padding: 10px; background: var(--carte); border: 2px solid var(--trait); border-radius: var(--rayon); }
-.vignette { width: 60px; height: 60px; flex-shrink: 0; display: grid; place-items: center; border-radius: var(--rayon); }
+.vignette { position: relative; width: 60px; height: 60px; flex-shrink: 0; display: grid; place-items: center; border-radius: var(--rayon); }
 .vignette img { width: 48px; height: 48px; }
+/* Le pictogramme du type, en coin de vignette : on reconnaît l'appel sans lire. */
+.picto { position: absolute; right: -6px; bottom: -6px; width: 24px; height: 24px; display: grid; place-items: center; background: var(--barre); border: 2px solid var(--trait); border-radius: var(--rayon); color: var(--craie-douce); }
+.picto svg { width: 16px; height: 16px; }
+/* Un appel qui attend ta réponse : une bande de rubalise en tête de carte, le pictogramme en jaune. */
+.ligne.attente { padding-top: 18px; background: repeating-linear-gradient(-45deg, var(--lampe) 0 8px, var(--barre) 8px 16px) top / 100% 6px no-repeat, var(--carte); }
+.ligne.attente .picto { color: var(--lampe); border-color: var(--lampe); }
+/* Une tâche de fond : une carte en pointillés, plus discrète. */
+.ligne.fond { border-style: dashed; background: var(--asphalte); }
+.ligne.fond .situation { color: var(--craie-douce); }
 .corps { min-width: 0; flex: 1; }
 .meta { display: flex; align-items: center; gap: 8px; font-size: 12px; }
 .badge { padding: 1px 6px; border-radius: var(--rayon); color: var(--barre); font-weight: 700; }
