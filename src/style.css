@@ -139,8 +139,10 @@ h3 { margin: 0; font-size: 17px; }
 /* Une lune en croissant, taillée en pixels. */
 .lune { position: absolute; top: 14px; right: 22px; width: 16px; height: 16px; border-radius: 50%; background: var(--craie); box-shadow: inset -6px -2px 0 0 var(--nuit); }
 
-.horizon { position: absolute; inset: 0 0 8px; display: flex; align-items: flex-end; gap: 3px; padding: 0 10px; }
-.chantiers { margin-left: auto; display: flex; align-items: flex-end; gap: 8px; }
+/* La rue défile à l'horizontale, au doigt ; le ciel et le sol restent en place. */
+.horizon { position: absolute; inset: 0 0 8px; overflow-x: auto; overflow-y: hidden; overscroll-behavior-x: contain; scrollbar-width: thin; scrollbar-color: var(--trait) transparent; }
+.rue { display: flex; align-items: flex-end; gap: 3px; min-width: 100%; width: max-content; height: 100%; padding: 0 10px; box-sizing: border-box; }
+.chantiers { margin-left: auto; padding-left: 12px; display: flex; align-items: flex-end; gap: 8px; }
 .parcelle { display: flex; align-items: flex-end; gap: 2px; }
 .equipe { display: flex; align-items: end; }
 .ouvrier { position: relative; width: 40px; height: 40px; flex-shrink: 0; }
@@ -174,6 +176,7 @@ h3 { margin: 0; font-size: 17px; }
 .bat.envol { position: fixed; z-index: 50; margin: 0; pointer-events: none; transform-origin: center; }
 .legende { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 8px; padding: 0 12px; font-size: 13px; color: var(--craie-douce); overflow-wrap: anywhere; }
 .legende .sep { width: 1px; height: 12px; background: var(--trait); }
+.vers-chantiers { margin-left: auto; display: inline-flex; align-items: center; min-height: 44px; padding: 0 4px; color: var(--lampe); font-weight: 700; text-decoration: none; }
 
 
 /* ── Le mur du chef : une case par jour, comme le mur d'activité de GitHub ── */

@@ -9,12 +9,10 @@ import { jourDe, type Batiment, type Chantier, type Journee } from './stockage'
 const ACTIF_MS = 2 * 3600_000
 // Un chantier fini reste sur sa parcelle, ouvriers au café, avant de rejoindre l'horizon.
 const FINI_MS = 10 * 60_000
-const CHANTIERS_MAX = 3
+const CHANTIERS_MAX = 6
 const SEMAINES = 17
-// Les dimensions du dessin, en pixels CSS : la plus haute tour (en étages), la largeur de l'horizon, une parcelle.
+// La plus haute tour, en étages.
 const ETAGES_MAX = 12
-const LARGEUR_SCENE = 330
-const LARGEUR_PARCELLE = 84
 
 export const echapper = (s: string): string =>
   s.replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]!)
@@ -166,15 +164,9 @@ export const scene = (chantiers: Chantier[], quartier: Batiment[]): string => {
   const vusEtages = lireVu<Record<string, number>>(ETAGES_VUS, {})
   const vusBatiments = new Set(lireVu<string[]>(BATIMENTS_VUS, []))
 
-  // L'horizon : les bâtiments les plus récents qui tiennent dans la place laissée par les chantiers en cours.
-  let place = LARGEUR_SCENE - enCoursIci.length * LARGEUR_PARCELLE
-  const visibles: Batiment[] = []
-  for (const b of [...quartier].reverse()) {
-    if (surSaParcelle.has(b.id)) continue
-    place -= facade(b.id).largeur + 3
-    if (place < 0) break
-    visibles.unshift(b)
-  }
+  // La rue : tout le quartier, du plus ancien au plus récent, puis les chantiers en cours ; elle défile à
+  // l'horizontale et s'ouvre sur sa fin (animerScene), les plus récents.
+  const visibles = quartier.filter(b => !surSaParcelle.has(b.id))
   const premiereVisite = vusBatiments.size === 0
 
   const legende = enCoursIci.length
@@ -190,18 +182,21 @@ export const scene = (chantiers: Chantier[], quartier: Batiment[]): string => {
       ? `Pas de chantier en cours · ${quartier.length} bâtiment${quartier.length > 1 ? 's' : ''} dans le quartier`
       : 'Le quartier attend son premier bâtiment'
 
+  // La scène n'est plus un lien : on y fait glisser la rue du doigt. Le lien vers les chantiers est dans la légende.
   return `
-    <a class="scene" href="#chantiers" aria-label="Le quartier. ${quartier.length} bâtiments finis, ${enCoursIci.length} chantiers en cours">
-      <div class="ciel" aria-hidden="true">
-        <span class="lune"></span>${ETOILES}
-        <div class="horizon">
-          ${visibles.map(b => batiment(b, !premiereVisite && !vusBatiments.has(b.id))).join('')}
-          ${visibles.length || enCoursIci.length ? '' : `<div class="parcelle"><div class="equipe">${ouvrier('resting', 0)}</div></div>`}
-          <div class="chantiers">${enCoursIci.map(c => parcelle(c, enCoursIci.length === 1, vusEtages)).join('')}</div>
+    <section class="scene" aria-label="Le quartier. ${quartier.length} bâtiments finis, ${enCoursIci.length} chantiers en cours">
+      <div class="ciel">
+        <span class="lune" aria-hidden="true"></span><span aria-hidden="true">${ETOILES}</span>
+        <div class="horizon" tabindex="0" aria-label="La rue du quartier, à faire défiler">
+          <div class="rue">
+            ${visibles.map(b => batiment(b, !premiereVisite && !vusBatiments.has(b.id))).join('')}
+            ${visibles.length || enCoursIci.length ? '' : `<div class="parcelle"><div class="equipe">${ouvrier('resting', 0)}</div></div>`}
+            <div class="chantiers">${enCoursIci.map(c => parcelle(c, enCoursIci.length === 1, vusEtages)).join('')}</div>
+          </div>
         </div>
       </div>
-      <p class="legende">${legende}</p>
-    </a>`
+      <p class="legende">${legende}<a class="vers-chantiers" href="#chantiers">Chantiers ›</a></p>
+    </section>`
 }
 
 // ── Le mur du chef : une case par jour, sur 17 semaines ──────────────────
@@ -291,6 +286,9 @@ const envoler = (source: HTMLElement, cible: HTMLElement): Promise<void> => {
 }
 
 export const animerScene = async (racine: HTMLElement, quartier: Batiment[]): Promise<void> => {
+  // La rue s'ouvre sur sa fin : les bâtiments les plus récents et les chantiers en cours.
+  const horizon = racine.querySelector<HTMLElement>('.horizon')
+  if (horizon) horizon.scrollLeft = horizon.scrollWidth
   const vusEtages = lireVu<Record<string, number>>(ETAGES_VUS, {})
   const envols = lireVu<string[]>(ENVOLS_VUS, [])
   const cible = racine.querySelector<HTMLElement>('.case.aujourdhui')
