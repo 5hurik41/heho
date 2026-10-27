@@ -14,47 +14,48 @@ mkdirSync(new URL('ouvriers/', PUBLIC), { recursive: true })
 
 type Grille = (string | null)[][]
 
-// ── Le logo : casque à lampe frontale et bulle « Hé ! », 28 × 22 pixels (BRIEF.md, direction B) ──
+// ── Le logo : casque à lampe frontale et bulle « HÉ ! », 32 × 25 pixels (BRIEF.md, direction B) ──
 
 const ENCRE = '#0E0F11'
-const T = { k: ENCRE, Y: '#F5C542', h: '#B8862A', W: '#FFF0BF', L: '#FFFFFF', bulle: '#EDEAE0' }
 const ASPHALTE = '#1B1C1E'
+const T: Record<string, string> = { k: ENCRE, Y: '#F5C542', h: '#B8862A', W: '#FFF0BF', L: '#FFFFFF', b: '#EDEAE0' }
 
-const CASQUE = [
-  '......kkkk......',
-  '....kkYYYYkk....',
-  '...kYYYhhYYYk...',
-  '..kYWYYLLYYYYk..',
-  '..kYWYYLLYYYYk..',
-  '..kYYYYhhYYYYk..',
-  '..kYYYYhhYYYYk..',
-  'kkkkkkkkkkkkkkkk',
-  'khhhhhhhhhhhhhhk',
-  'kkkkkkkkkkkkkkkk',
+// Dessiné tel quel, pixel par pixel : k encre, Y jaune lampe, h son ombre, W reflet, L lampe, b la bulle.
+const LOGO = [
+  '...............kkkkkkkkkkkkkkkk.',
+  '..............kbbbbbbbbbbbbbbbbk',
+  '..............kbbbbbbbbbkbbbbbbk',
+  '..............kbbbbbbbbkbbbbbbbk',
+  '..............kbbbbbbbbbbbbbbbbk',
+  '..............kbbbkbkbkkkbbkbbbk',
+  '..............kbbbkbkbkbbbbkbbbk',
+  '..............kbbbkkkbkkbbbkbbbk',
+  '..............kbbbkbkbkbbbbbbbbk',
+  '..............kbbbkbkbkkkbbkbbbk',
+  '..............kbbbbbbbbbbbbbbbbk',
+  '..............kbbkkkkkkkkkkkkkk.',
+  '..............kbk...............',
+  '........kkkkkkkk................',
+  '......kkYYhhYYkk................',
+  '.....kYYYYhhYYYYk...............',
+  '....kYWYYYkkYYYYYk..............',
+  '...kYWYYYkLLkYYYYYk.............',
+  '...kYWYYYkLLkYYYYYk.............',
+  '..kYYYYYYkkkkYYYYYYk............',
+  '..kYYYYYYYhhYYYYYYYk............',
+  '..kYYYYYYYhhYYYYYYYk............',
+  'kkkkkkkkkkkkkkkkkkkkkk..........',
+  'khhhhhhhhhhhhhhhhhhhhk..........',
+  'kkkkkkkkkkkkkkkkkkkkkk..........',
 ]
-
-const GLYPHES: [number, string[]][] = [
-  [14, ['', '', 'X.X', 'X.X', 'XXX', 'X.X', 'X.X']],
-  [18, ['..X', '', '.X.', 'X.X', 'XXX', 'X..', '.XX']],
-  [23, ['', '', 'X', 'X', 'X', '.', 'X']],
-]
+// Le casque seul, pour la petite icône de la barre d'état.
+const LIGNE_CASQUE = 13
+const LARGEUR_CASQUE = 22
 
 const logo = (): Grille => {
-  const g: Grille = Array.from({ length: 22 }, () => Array<string | null>(28).fill(null))
-  for (let y = 0; y <= 9; y++)
-    for (let x = 11; x <= 27; x++) {
-      if ((y === 0 || y === 9) && (x === 11 || x === 27)) continue
-      g[y]![x] = y === 0 || y === 9 || x === 11 || x === 27 ? T.k : T.bulle
-    }
-  for (const [x, y] of [[13, 9], [13, 10], [12, 10], [12, 11], [14, 9]] as const) g[y]![x] = T.k
-  g[9]![13] = T.bulle
-  for (const [x0, lignes] of GLYPHES)
-    lignes.forEach((l, dy) => l.split('').forEach((c, dx) => { if (c === 'X') g[1 + dy]![x0 + dx] = T.k }))
-  CASQUE.forEach((l, dy) =>
-    l.split('').forEach((c, dx) => { if (c !== '.') g[12 + dy]![dx] = T[c as 'k' | 'Y' | 'h' | 'W' | 'L'] }),
-  )
+  if (LOGO.some(l => l.length !== 32)) throw new Error('LOGO : chaque ligne doit faire 32 pixels')
 
-  return g
+  return LOGO.map(l => l.split('').map(c => (c === '.' ? null : T[c]!)))
 }
 
 // ── Sorties ──────────────────────────────────────────────────────────────
@@ -132,7 +133,7 @@ const png = (
 
 const L = logo()
 // La petite icône de la barre d'état : Android n'en garde que la silhouette, le casque seul suffit.
-const CASQUE_SEUL = L.slice(12).map(l => l.slice(0, 16))
+const CASQUE_SEUL = L.slice(LIGNE_CASQUE).map(l => l.slice(0, LARGEUR_CASQUE))
 
 writeFileSync(new URL('logo.svg', PUBLIC), svg(L))
 writeFileSync(new URL('icones/icone-192.png', PUBLIC), png([192, 192], L, 5, ASPHALTE))
@@ -140,7 +141,7 @@ writeFileSync(new URL('icones/icone-512.png', PUBLIC), png([512, 512], L, 13, AS
 // Maskable : le dessin reste dans le cercle sûr de 80 %.
 writeFileSync(new URL('icones/icone-maskable-512.png', PUBLIC), png([512, 512], L, 10, ASPHALTE))
 writeFileSync(new URL('icones/favicon-32.png', PUBLIC), png([32, 32], L, 1, null))
-writeFileSync(new URL('icones/badge-96.png', PUBLIC), png([96, 96], CASQUE_SEUL, 5, null, { teinte: '#FFFFFF' }))
+writeFileSync(new URL('icones/badge-96.png', PUBLIC), png([96, 96], CASQUE_SEUL, 4, null, { teinte: '#FFFFFF' }))
 
 // ── Les ouvriers, un par situation, tirés des sprites de task-steps ──
 
@@ -149,7 +150,52 @@ const { pixels, hex } = (await import(pathToFileURL(SPRITES).href)) as {
   hex: (rgb: number) => string
 }
 const ROLES = { question: 'thinker', permission: 'foreman', done: 'resting', recap: 'painter', budget: 'mechanic' }
-const ouvrier = (role: string): Grille => pixels(role, 1).map(l => l.map(c => (c === null ? null : hex(c))))
+
+// Les sprites sont en Catppuccin, pour le terminal ; dans Hého ils passent aux couleurs de l'équipe de nuit :
+// casques jaune lampe, gilets orange balise, bleus de travail, et un contour d'encre qui les détache de
+// n'importe quelle couleur de badge.
+const NUIT: Record<string, string> = {
+  // peau, yeux ; bottes, pantalons et cheveux en ardoise, assez clairs pour que le contour d'encre se voie
+  '#f2cdcd': '#E9B48F', '#11111b': ENCRE, '#585b70': '#505664', '#45475a': '#3C404A',
+  // blancs et gris
+  '#cdd6f4': '#F4F1E8', '#a6adc8': '#B9B6AC', '#9399b2': '#8C8F96', '#7f849c': '#9A968C',
+  // jaune et orange : casques, gilets, accents
+  '#f9e2af': '#F5C542', '#df8e1d': '#B8862A', '#fab387': '#FF7A2F',
+  // vert : chercheur, ouvrier au café, coche de la planchette
+  '#a6e3a1': '#6FAF5B', '#40a02b': '#3E7A34',
+  // bleus : mécanicien, pantalon du bâtisseur, verre de la loupe
+  '#89b4fa': '#3366AA', '#1e66f5': '#22477A', '#74c7ec': '#2F7FA8', '#209fb5': '#1F5A78', '#89dceb': '#9FD8F0',
+  // penseur
+  '#b4befe': '#8E8CD8', '#7287fd': '#5E5BB0',
+  // peintre
+  '#f38ba8': '#E0443C', '#d20f39': '#A82A24', '#f5c2e7': '#E879A8',
+  // coursier
+  '#94e2d5': '#3FA89A', '#179299': '#22766C',
+  // chapeau safari et bois des outils : déjà dans le ton
+  '#e5c890': '#D9B97A', '#c6a76d': '#A88A4E', '#b4846c': '#B4846C', '#8a5a44': '#8A5A44',
+}
+
+const recolorer = (c: string): string => {
+  const nuit = NUIT[c.toLowerCase()]
+  if (!nuit) throw new Error(`couleur de sprite sans équivalent dans NUIT : ${c}`)
+
+  return nuit
+}
+
+// Un pixel d'encre autour de chaque pixel dessiné (voisins haut, bas, gauche, droite) ; la grille s'agrandit d'un pixel.
+const contour = (g: Grille): Grille => {
+  const h = g.length + 2
+  const l = g[0]!.length + 2
+  const plein = (x: number, y: number) => g[y - 1]?.[x - 1] != null
+
+  return Array.from({ length: h }, (_, y) =>
+    Array.from({ length: l }, (_, x) =>
+      plein(x, y) ? g[y - 1]![x - 1]! : plein(x - 1, y) || plein(x + 1, y) || plein(x, y - 1) || plein(x, y + 1) ? ENCRE : null,
+    ),
+  )
+}
+
+const ouvrier = (role: string): Grille => contour(pixels(role, 1).map(l => l.map(c => (c === null ? null : recolorer(hex(c))))))
 for (const [situation, role] of Object.entries(ROLES)) writeFileSync(new URL(`ouvriers/${situation}.svg`, PUBLIC), svg(ouvrier(role)))
 
 // ── Les grandes images des notifications : l'ouvrier sur la couleur du badge, debout sur le marquage au sol ──
@@ -169,7 +215,7 @@ for (const [situation, role] of Object.entries(ROLES))
   for (const badge of BADGES)
     writeFileSync(
       new URL(`notifications/${situation}-${badge}.png`, PUBLIC),
-      png(IMAGE, ouvrier(role), 16, `#${badge}`, { decor: marquage, bas: IMAGE[1] - SOL + 4 }),
+      png(IMAGE, ouvrier(role), 14, `#${badge}`, { decor: marquage, bas: IMAGE[1] - SOL + 4 }),
     )
 
 console.log(`Logo, 5 icônes, 5 ouvriers et ${5 * BADGES.length} images de notification écrits dans public/`)
