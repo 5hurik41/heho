@@ -83,6 +83,13 @@ describe('ajouterBatiments et retirerBatiments', () => {
     expect((await lireQuartier()).map(b => [b.id, b.etages])).toEqual([['s1:1', 5]])
   })
 
+  test('un bâtiment fini ici garde ses étapes, même quand le PC le renvoie sans elles', async () => {
+    await recevoirProgression(plan(['completed', 'completed'], MAINTENANT))
+    const id = `s1:${MAINTENANT}`
+    await ajouterBatiments([{ ...batiment(id, MAINTENANT), etages: 2 }])
+    expect((await lireQuartier())[0]?.etapes).toEqual(['Étape 1', 'Étape 2'])
+  })
+
   test('le quartier garde ses 60 derniers bâtiments', async () => {
     await ajouterBatiments(Array.from({ length: 65 }, (_, i) => batiment(`s:${i}`, i)))
     const quartier = await lireQuartier()

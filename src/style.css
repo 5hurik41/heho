@@ -217,6 +217,88 @@ h3 { margin: 0; font-size: 17px; }
 .completed .marque { background: var(--craie-douce); border-color: var(--craie-douce); }
 .in_progress .marque { background: var(--lampe); border-color: var(--lampe); }
 
-.nav { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); border-top: 4px solid var(--trait); padding-bottom: env(safe-area-inset-bottom); background: var(--carte); }
-.nav a { display: grid; place-items: center; min-height: 60px; color: var(--craie); font-size: 14px; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; text-decoration: none; }
+.nav { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); border-top: 4px solid var(--trait); padding-bottom: env(safe-area-inset-bottom); background: var(--carte); }
+.nav a { display: grid; place-items: center; min-height: 60px; color: var(--craie); font-size: clamp(12px, 3.3vw, 14px); font-weight: 700; letter-spacing: .03em; text-transform: uppercase; text-decoration: none; }
 .nav a[aria-current='page'] { background: var(--lampe); color: var(--barre); }
+
+/* ── Bloc 2 : filtres, fiches, forfait (BRIEF.md, « Forfait », « Fiches ») ── */
+
+/* Une carte d'appel s'ouvre en fiche : trois lignes ici, le texte entier dans la fiche. */
+.ligne[data-fiche] { cursor: pointer; }
+.ligne .texte { display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 3; line-clamp: 3; overflow: hidden; }
+.bat[data-batiment] { cursor: pointer; }
+.bat[data-batiment]:focus-visible { outline-offset: 1px; }
+
+/* Les filtres : des pastilles qui s'allument à la lampe, la session gardant sa couleur de badge en liseré. */
+.filtres { display: flex; flex-wrap: wrap; gap: 8px; }
+.pastille {
+  min-height: 40px;
+  padding: 0 12px;
+  border: 2px solid var(--trait);
+  border-left: 6px solid var(--couleur, var(--trait));
+  border-radius: var(--rayon);
+  background: var(--carte);
+  color: var(--craie);
+  font-size: 13px;
+  font-weight: 700;
+  letter-spacing: .04em;
+  text-transform: uppercase;
+}
+.pastille.type { border-left-width: 2px; }
+.pastille[aria-pressed='true'] { background: var(--lampe); border-color: var(--lampe); color: var(--barre); }
+.pastille.aucun { border-style: dashed; border-left-width: 2px; background: none; color: var(--craie-douce); }
+
+/* La feuille : un <dialog> collé en bas, qui monte ; le voile assombrit l'historique sans le cacher. */
+.feuille {
+  position: fixed;
+  inset: auto 0 0;
+  width: 100%;
+  max-width: 640px;
+  max-height: 85dvh;
+  margin: 0 auto;
+  padding: 0 0 env(safe-area-inset-bottom);
+  display: flex;
+  flex-direction: column;
+  border: 0;
+  border-top: 4px solid var(--lampe);
+  border-radius: 10px 10px 0 0;
+  background: var(--carte);
+  color: var(--craie);
+  transition: translate 0.2s ease-out;
+}
+.feuille:not([open]) { display: none; }
+.feuille[open] { animation: feuille-monte 0.28s cubic-bezier(.16,1,.3,1); }
+@keyframes feuille-monte { from { transform: translateY(100%); } }
+.feuille::backdrop { background: rgb(11 12 16 / .7); }
+.poignee { display: grid; place-items: center; height: 28px; flex-shrink: 0; touch-action: none; }
+.poignee span { width: 44px; height: 4px; border-radius: 2px; background: var(--trait); }
+.feuille .fermer { position: absolute; top: 8px; right: 12px; margin: 0; }
+.feuille-corps { overflow-y: auto; overscroll-behavior: contain; padding: 0 16px 24px; display: flex; flex-direction: column; gap: 14px; }
+.fiche-tete { display: flex; gap: 14px; align-items: center; padding-right: 40px; touch-action: none; }
+.fiche-tete .meta { margin-bottom: 6px; }
+.fiche-tete h2 { font-size: 26px; }
+.fiche-texte { font-size: 16px; white-space: pre-wrap; overflow-wrap: anywhere; }
+.fiche-faits { margin: 0; display: flex; flex-direction: column; gap: 4px; padding: 10px 12px; background: var(--barre); border-radius: var(--rayon); font-size: 14px; }
+.fiche-faits div { display: flex; gap: 12px; }
+.fiche-faits dt { min-width: 72px; color: var(--craie-douce); font-weight: 700; }
+.fiche-faits dd { margin: 0; }
+
+/* Le forfait : un mur de 20 briques, rempli depuis le bas ; à l'orange passé 75 %. */
+.forfait { display: flex; flex-direction: column; gap: 10px; padding: 14px; background: var(--carte); border: 2px solid var(--trait); border-radius: var(--rayon); }
+.forfait-tete { display: flex; align-items: baseline; justify-content: space-between; }
+.pourcent { font: 44px/1 var(--titre); color: var(--lampe); }
+.mur-forfait { display: flex; flex-direction: column; gap: 3px; padding: 6px; background: var(--barre); border-radius: var(--rayon); }
+.rangee { display: grid; grid-template-columns: repeat(10, 1fr); gap: 3px; }
+.rangee i { height: 18px; border-radius: 1px; background: #2E3034; }
+.rangee i.pleine { background: var(--lampe); box-shadow: inset 0 -3px 0 #C9962B; }
+.alerte .rangee i.pleine { background: var(--balise); box-shadow: inset 0 -3px 0 #B8501A; }
+.alerte ~ .projection, .projection.depasse { color: var(--balise); }
+.rangee i.prevue { background: none; outline: 2px dashed var(--craie-douce); outline-offset: -2px; }
+.forfait:has(.alerte) .pourcent { color: var(--balise); }
+.projection { font-weight: 700; }
+.maj .heure { margin: 0; }
+
+@media (prefers-reduced-motion: reduce) {
+  .feuille[open] { animation: none; }
+  .feuille { transition: none; }
+}

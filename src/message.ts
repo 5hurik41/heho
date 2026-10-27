@@ -2,7 +2,8 @@
 // C'est la seule définition du format : le mod s'y réfère.
 
 // « fond » : une tâche lancée en arrière-plan ; « fond-fini » : la même, terminée, qui remplace son lancement.
-export const SITUATIONS = ['question', 'permission', 'done', 'recap', 'budget', 'fond', 'fond-fini'] as const
+// « bilan » : le bilan d'une journée, envoyé à la reprise du lendemain (BRIEF.md, « Bilan »).
+export const SITUATIONS = ['question', 'permission', 'done', 'recap', 'budget', 'fond', 'fond-fini', 'bilan'] as const
 export type Situation = (typeof SITUATIONS)[number]
 // Celles qui attendent une réponse de la personne : l'historique les marque d'une bande de rubalise.
 export const ATTENTES: readonly Situation[] = ['question', 'permission', 'recap']
@@ -28,6 +29,43 @@ export type Message = {
   tache?: string
 }
 
+// ── Le forfait : joint à chaque push quand le PC le connaît (BRIEF.md, « Forfait ») ──
+// Chrome exige une notification par push : l'état du forfait voyage avec les autres envois, jamais seul.
+
+export type Fenetre = {
+  // 0 à 100, une décimale au plus.
+  pourcent: number
+  // L'heure de la remise à zéro, en millisecondes ; null si le PC ne la connaît pas.
+  remise: number | null
+}
+
+export type Forfait = {
+  semaine: (Fenetre & { projection: number | null }) | null
+  cinqHeures: Fenetre | null
+  // L'heure où le PC l'a mesuré.
+  date: number
+}
+
+const fenetre = (brut: unknown): Fenetre | null => {
+  if (typeof brut !== 'object' || brut === null) return null
+  const { pourcent, remise } = brut as Record<string, unknown>
+  if (!nombre(pourcent) || (remise !== null && !nombre(remise))) return null
+
+  return { pourcent, remise }
+}
+
+// Le champ `forfait` d'un push, quel que soit son genre ; null s'il manque ou est mal formé.
+export const lireForfait = (brut: unknown): Forfait | null => {
+  const f = (typeof brut === 'object' && brut !== null ? (brut as Record<string, unknown>).forfait : null) as Record<string, unknown> | null
+  if (typeof f !== 'object' || f === null || !nombre(f.date)) return null
+  const semaine = fenetre(f.semaine)
+  const projection = (f.semaine as { projection?: unknown } | null)?.projection
+  const cinqHeures = fenetre(f.cinqHeures)
+  if (!semaine && !cinqHeures) return null
+
+  return { semaine: semaine && { ...semaine, projection: nombre(projection) ? projection : null }, cinqHeures, date: f.date }
+}
+
 // Le PC envoie la situation, l'appli écrit le titre (BRIEF.md, « Langue de l'interface »).
 export const TITRES: Record<Situation, string> = {
   question: 'Claude te pose une question',
@@ -37,6 +75,7 @@ export const TITRES: Record<Situation, string> = {
   budget: 'Alerte budget',
   fond: 'Tâche de fond lancée',
   'fond-fini': 'Tâche de fond terminée',
+  bilan: 'Le bilan de ta journée',
 }
 
 // Le libellé court, dans l'historique.
@@ -48,10 +87,11 @@ export const LIBELLES: Record<Situation, string> = {
   budget: 'Budget',
   fond: 'En fond',
   'fond-fini': 'Fond fini',
+  bilan: 'Bilan',
 }
 
 // L'ouvrier de chaque situation (public/ouvriers/, public/notifications/) : les deux temps d'une tâche de fond
-// partagent le coursier.
+// partagent le coursier ; le bilan, le maçon.
 export const OUVRIER: Record<Situation, string> = {
   question: 'question',
   permission: 'permission',
@@ -60,6 +100,7 @@ export const OUVRIER: Record<Situation, string> = {
   budget: 'budget',
   fond: 'fond',
   'fond-fini': 'fond',
+  bilan: 'bilan',
 }
 
 export const titre = (m: Message): string => `${m.session} · ${TITRES[m.situation]}`

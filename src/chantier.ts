@@ -116,7 +116,7 @@ const batiment = (b: Batiment, neuf: boolean): string => {
   const etages = Math.min(Math.max(b.etages, 1), ETAGES_MAX)
 
   return `
-    <div class="bat toit-${f.toit}${neuf ? ' neuf' : ''}" style="width:${f.largeur}px;--fond:${f.fond};--badge:${b.couleur}" title="${echapper(b.session)} · ${echapper(b.titre ?? 'Chantier')}">
+    <div class="bat toit-${f.toit}${neuf ? ' neuf' : ''}" style="width:${f.largeur}px;--fond:${f.fond};--badge:${b.couleur}" data-batiment="${echapper(b.id)}" role="button" tabindex="0" aria-haspopup="dialog" aria-label="${echapper(b.session)} · ${echapper(b.titre ?? 'Chantier')}, ${b.etages} étages : voir sa fiche">
       ${fenetres(f, etages, etages, etages)}
     </div>`
 }

@@ -1,5 +1,5 @@
 // L'historique, les chantiers et les réglages, dans IndexedDB : le service worker écrit, l'appli lit, hors ligne compris.
-import { estFini, faites, type Message, type Progression, type Situation } from './message'
+import { estFini, faites, type Forfait, type Message, type Progression, type Situation } from './message'
 
 const BASE = 'heho'
 const HISTORIQUE = 'historique'
@@ -11,6 +11,8 @@ const ACTIVITE = 'activite'
 // Le quartier : chaque mur fini devient un bâtiment de la ligne d'horizon. Il garde ses derniers bâtiments.
 const QUARTIER = 'quartier'
 const BATIMENTS_MAX = 60
+// Le dernier état du forfait reçu du PC, une seule entrée.
+const FORFAIT = 'forfait'
 // Au-delà, les plus anciens messages sont effacés.
 const GARDER = 200
 // Le nettoyage (BRIEF.md, « La suite », bloc 1) : un appel quitte l'historique après 30 jours ; un chantier, fini ou
@@ -23,8 +25,9 @@ export type Reglage = { son: boolean; vibration: boolean }
 // Un chantier tel que le téléphone le garde : la progression reçue, et l'heure où il a été vu terminé.
 export type Chantier = Progression & { finiA?: number }
 export type Journee = { jour: string; briques: number; murs: number }
-// Un bâtiment du quartier : un chantier fini, autant d'étages que d'étapes.
-export type Batiment = { id: string; session: string; couleur: string; titre: string | null; etages: number; date: number }
+// Un bâtiment du quartier : un chantier fini, autant d'étages que d'étapes. `etapes`, le texte de chacune pour sa
+// fiche, n'existe que pour ceux vus finir sur ce téléphone : la sauvegarde du PC ne les porte pas (un push pèse 4 Ko).
+export type Batiment = { id: string; session: string; couleur: string; titre: string | null; etages: number; date: number; etapes?: string[] }
 
 // Le jour, à l'heure du téléphone : « 2026-10-27 ».
 export const jourDe = (ms: number): string => {
@@ -35,7 +38,7 @@ export const jourDe = (ms: number): string => {
 
 const ouvrir = (): Promise<IDBDatabase> =>
   new Promise((resoudre, rejeter) => {
-    const req = indexedDB.open(BASE, 4)
+    const req = indexedDB.open(BASE, 5)
     // Chaque version ajoute ce qui lui manque : un téléphone en version 1 garde son historique.
     req.onupgradeneeded = e => {
       const db = req.result
@@ -46,6 +49,7 @@ const ouvrir = (): Promise<IDBDatabase> =>
       if (e.oldVersion < 2) db.createObjectStore(CHANTIERS, { keyPath: 'sessionId' })
       if (e.oldVersion < 3) db.createObjectStore(ACTIVITE, { keyPath: 'jour' })
       if (e.oldVersion < 4) db.createObjectStore(QUARTIER, { keyPath: 'id' }).createIndex('date', 'date')
+      if (e.oldVersion < 5) db.createObjectStore(FORFAIT)
     }
     req.onsuccess = () => resoudre(req.result)
     req.onerror = () => rejeter(req.error)
@@ -119,11 +123,15 @@ export const fusionnerActivite = async (journees: Journee[]): Promise<void> => {
   }
 }
 
-// Ajoute ou remplace des bâtiments (même id, même chantier fini), puis ne garde que les plus récents.
+// Ajoute ou remplace des bâtiments (même id, même chantier fini), puis ne garde que les plus récents. Un bâtiment
+// repris du PC garde les étapes que ce téléphone connaissait.
 export const ajouterBatiments = async (batiments: Batiment[]): Promise<void> => {
   const db = await ouvrir()
   const store = db.transaction(QUARTIER, 'readwrite').objectStore(QUARTIER)
-  for (const b of batiments) await attendre(store.put(b))
+  for (const b of batiments) {
+    const etapes = b.etapes ?? ((await attendre(store.get(b.id))) as Batiment | undefined)?.etapes
+    await attendre(store.put(etapes ? { ...b, etapes } : b))
+  }
   const cles = await attendre(store.index('date').getAllKeys())
   for (const cle of cles.slice(0, Math.max(0, cles.length - BATIMENTS_MAX))) store.delete(cle)
 }
@@ -171,7 +179,23 @@ export const recevoirProgression = async (p: Progression): Promise<void> => {
   if (briques || vientDeFinir) await ajouterActivite(jourDe(p.date), briques, vientDeFinir ? 1 : 0)
   // Un mur fini devient un bâtiment du quartier, d'autant d'étages que d'étapes.
   if (vientDeFinir)
-    await ajouterBatiments([{ id: `${p.sessionId}:${p.date}`, session: p.session, couleur: p.couleur, titre: p.titre, etages: p.etapes.length, date: p.date }])
+    await ajouterBatiments([
+      { id: `${p.sessionId}:${p.date}`, session: p.session, couleur: p.couleur, titre: p.titre, etages: p.etapes.length, date: p.date, etapes: p.etapes.map(e => e.texte) },
+    ])
+}
+
+// Garde l'état du forfait s'il est plus récent que celui qu'on a : deux sessions peuvent l'envoyer dans le désordre.
+export const ecrireForfait = async (f: Forfait): Promise<void> => {
+  const db = await ouvrir()
+  const store = db.transaction(FORFAIT, 'readwrite').objectStore(FORFAIT)
+  const avant = (await attendre(store.get('dernier'))) as Forfait | undefined
+  if (!avant || avant.date <= f.date) await attendre(store.put(f, 'dernier'))
+}
+
+export const lireForfaitGarde = async (): Promise<Forfait | undefined> => {
+  const db = await ouvrir()
+
+  return (await attendre(db.transaction(FORFAIT).objectStore(FORFAIT).get('dernier'))) as Forfait | undefined
 }
 
 // Efface les appels et les chantiers trop vieux ; à chaque push reçu et à chaque ouverture de l'appli.

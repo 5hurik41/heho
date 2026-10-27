@@ -172,7 +172,7 @@ const { pixels, hex } = (await import(pathToFileURL(SPRITES).href)) as {
   pixels: (role: string, frame: number) => (number | null)[][]
   hex: (rgb: number) => string
 }
-const ROLES = { question: 'thinker', permission: 'foreman', done: 'resting', recap: 'painter', budget: 'mechanic', fond: 'courier' }
+const ROLES = { question: 'thinker', permission: 'foreman', done: 'resting', recap: 'painter', budget: 'mechanic', fond: 'courier', bilan: 'builder' }
 
 // Les sprites sont en Catppuccin, pour le terminal ; dans Hého ils passent aux couleurs de l'équipe de nuit :
 // casques jaune lampe, gilets orange balise, bleus de travail, et un contour d'encre qui les détache de

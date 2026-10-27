@@ -5,9 +5,24 @@ import '@fontsource/atkinson-hyperlegible-next/700.css'
 import './style.css'
 import { animerScene, carte, CROIX, echapper, horodatage, murDuChef, rafraichirHeures, scene } from './chantier'
 import { CLE_PUBLIQUE_VAPID } from './config'
+import { ficheAppel, ficheBatiment, ouvrirFeuille } from './fiche'
+import { filtrer, pastilles, type Filtres } from './filtres'
+import { ecranForfait } from './forfait'
 import { ATTENTES, LIBELLES, OUVRIER, REGLABLES, TITRES, type Message, type Situation } from './message'
 import { picto } from './pictos'
-import { ecrireReglage, effacerChantier, effacerMessage, lireActivite, lireChantiers, lireHistorique, lireQuartier, lireReglage, nettoyer, viderHistorique } from './stockage'
+import {
+  ecrireReglage,
+  effacerChantier,
+  effacerMessage,
+  lireActivite,
+  lireChantiers,
+  lireForfaitGarde,
+  lireHistorique,
+  lireQuartier,
+  lireReglage,
+  nettoyer,
+  viderHistorique,
+} from './stockage'
 
 const ecran = document.querySelector<HTMLElement>('#ecran')!
 const nav = document.querySelector<HTMLElement>('#nav')!
@@ -78,8 +93,9 @@ const montrerCode = (abo: PushSubscription): void => {
 // Une carte d'appel. Celles qui attendent une réponse portent la rubalise ; une tâche de fond, des pointillés.
 const genre = (s: Situation): string => (ATTENTES.includes(s) ? ' attente' : s === 'fond' || s === 'fond-fini' ? ' fond' : '')
 
+// Toute la carte ouvre la fiche de l'appel ; la croix, elle, efface.
 const ligne = (m: Message): string => `
-  <article class="ligne${genre(m.situation)}">
+  <article class="ligne${genre(m.situation)}" data-fiche="${echapper(m.id)}" tabindex="0" aria-haspopup="dialog">
     <div class="vignette" style="background:${m.couleur}"><img src="./ouvriers/${OUVRIER[m.situation]}.svg" alt="">${picto(m.situation)}</div>
     <div class="corps">
       <div class="meta">
@@ -92,24 +108,72 @@ const ligne = (m: Message): string => `
     </div>
   </article>`
 
+// Les filtres choisis tiennent tant que l'appli reste ouverte.
+const filtres: Filtres = { sessions: new Set(), types: new Set() }
+
+const rangeeFiltres = (messages: Message[]): string => {
+  const { sessions, types } = pastilles(messages, filtres)
+  if (sessions.length < 2 && types.length < 2 && !filtres.sessions.size && !filtres.types.size) return ''
+  const actif = filtres.sessions.size + filtres.types.size > 0
+
+  return `
+    <div class="filtres" role="group" aria-label="Filtrer les appels">
+      ${sessions.map(s => `<button class="pastille" type="button" data-session="${echapper(s.nom)}" aria-pressed="${filtres.sessions.has(s.nom)}" style="--couleur:${s.couleur}">${echapper(s.nom)}</button>`).join('')}
+      ${types.map(t => `<button class="pastille type" type="button" data-type="${t.type}" aria-pressed="${filtres.types.has(t.type)}">${t.libelle}</button>`).join('')}
+      ${actif ? `<button class="pastille aucun" type="button" id="sans-filtre">Tout voir</button>` : ''}
+    </div>`
+}
+
 const historique = async (): Promise<void> => {
   const [messages, chantiers, activite, quartier] = await Promise.all([lireHistorique(), lireChantiers(), lireActivite(), lireQuartier()])
+  const affiches = filtrer(messages, filtres)
+  const isFiltre = affiches.length !== messages.length
   ecran.innerHTML = `
     ${scene(chantiers, quartier)}
     ${murDuChef(activite)}
     ${
       messages.length
-        ? `<h2>Derniers appels</h2>${messages.map(ligne).join('')}
-           <button class="bouton second" id="vider" type="button">Tout effacer</button>`
+        ? `<h2>Derniers appels</h2>${rangeeFiltres(messages)}
+           ${affiches.length ? affiches.map(ligne).join('') : `<p class="aide">Aucun appel pour ces filtres.</p>`}
+           ${isFiltre ? '' : `<button class="bouton second" id="vider" type="button">Tout effacer</button>`}`
         : `<h2>Rien pour l'instant</h2><p class="aide">Les appels du PC s'afficheront ici, même hors ligne.</p>`
     }`
   ecran.querySelectorAll<HTMLButtonElement>('button[data-message]').forEach(b =>
-    b.addEventListener('click', async () => {
+    b.addEventListener('click', async e => {
+      e.stopPropagation()
       await effacerMessage(b.dataset.message!)
       b.closest('article')?.remove()
       if (!ecran.querySelector('article.ligne')) await historique()
     }),
   )
+  ecran.querySelectorAll<HTMLElement>('article[data-fiche]').forEach(a => {
+    const ouvrir = () => {
+      const m = messages.find(x => x.id === a.dataset.fiche)
+      if (m) ouvrirFeuille(ficheAppel(m, messages))
+    }
+    a.addEventListener('click', ouvrir)
+    a.addEventListener('keydown', e => (e.key === 'Enter' || e.key === ' ') && e.target === a && (e.preventDefault(), ouvrir()))
+  })
+  ecran.querySelectorAll<HTMLElement>('[data-batiment]').forEach(el => {
+    const ouvrir = () => {
+      const b = quartier.find(x => x.id === el.dataset.batiment)
+      if (b) ouvrirFeuille(ficheBatiment(b))
+    }
+    el.addEventListener('click', ouvrir)
+    el.addEventListener('keydown', e => (e.key === 'Enter' || e.key === ' ') && (e.preventDefault(), ouvrir()))
+  })
+  ecran.querySelectorAll<HTMLButtonElement>('.pastille[data-session], .pastille[data-type]').forEach(b =>
+    b.addEventListener('click', () => {
+      const [ensemble, valeur] = b.dataset.session !== undefined ? [filtres.sessions, b.dataset.session] : [filtres.types, b.dataset.type!]
+      if (!ensemble.delete(valeur)) ensemble.add(valeur)
+      void historique()
+    }),
+  )
+  ecran.querySelector('#sans-filtre')?.addEventListener('click', () => {
+    filtres.sessions.clear()
+    filtres.types.clear()
+    void historique()
+  })
   // Deux temps, sans boîte de dialogue : le premier toucher demande confirmation, le second efface.
   const vider = ecran.querySelector<HTMLButtonElement>('#vider')
   vider?.addEventListener('click', async () => {
@@ -138,6 +202,12 @@ const chantiers = async (): Promise<void> => {
       await chantiers()
     }),
   )
+}
+
+// ── Forfait ──────────────────────────────────────────────────────────────
+
+const forfait = async (): Promise<void> => {
+  ecran.innerHTML = ecranForfait(await lireForfaitGarde())
 }
 
 // ── Réglages ─────────────────────────────────────────────────────────────
@@ -197,7 +267,7 @@ const reglages = async (): Promise<void> => {
 
 // ── Navigation ───────────────────────────────────────────────────────────
 
-const ECRANS: Record<string, () => Promise<void>> = { accueil, chantiers, historique, reglages }
+const ECRANS: Record<string, () => Promise<void>> = { accueil, chantiers, historique, forfait, reglages }
 
 const afficher = async (): Promise<void> => {
   const associe = (await abonnementActuel()) !== null
@@ -217,8 +287,8 @@ navigator.serviceWorker?.addEventListener('message', e => {
   const { type, ecran: cible } = (e.data ?? {}) as { type?: string; ecran?: string }
   const affiche = location.hash.slice(1) || 'historique'
   if (type === 'aller' && cible) location.hash = cible
-  // L'historique montre aussi la scène du chantier : il suit les deux.
-  if (type === 'maj' && (affiche === cible || affiche === 'historique')) void afficher()
+  // L'historique montre aussi la scène du chantier : il suit les deux. Le forfait arrive avec n'importe quel push.
+  if (type === 'maj' && (affiche === cible || affiche === 'historique' || affiche === 'forfait')) void afficher()
 })
 // À l'ouverture, les appels et les chantiers trop vieux partent avant le premier affichage.
 void nettoyer()

@@ -10,6 +10,7 @@ const DESSINS: Record<Situation, string[]> = {
   budget: ['........', '..XXXX..', '.X....X.', 'X..X...X', 'X...X..X', 'X....X.X', '........', '........'],
   fond: ['........', '.XXXXXX.', 'X..XX..X', 'XXXXXXXX', 'X..XX..X', 'X..XX..X', 'XXXXXXXX', '........'],
   'fond-fini': ['........', '.XXXXXX.', 'X..XX..X', 'XXXXXXXX', 'X..XX..X', 'X..XX..X', 'XXXXXXXX', '........'],
+  bilan: ['XXX.XXXX', 'XXX.XXXX', '........', 'X.XXXX.X', 'X.XXXX.X', '........', 'XXX.XXXX', 'XXX.XXXX'],
 }
 
 const svg = (dessin: string[]): string => {

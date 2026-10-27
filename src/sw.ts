@@ -1,7 +1,7 @@
 /// <reference lib="webworker" />
 // Le service worker : reçoit le push, montre la notification, garde le message dans l'historique.
-import { enCours, estFini, faites, image, lireMessage, lireProgression, lireSauvegarde, titre, type Message, type Progression } from './message'
-import { ajouterBatiments, ajouterMessage, fusionnerActivite, lireHistorique, lireReglage, nettoyer, recevoirProgression, retirerBatiments } from './stockage'
+import { enCours, estFini, faites, image, lireForfait, lireMessage, lireProgression, lireSauvegarde, titre, type Message, type Progression } from './message'
+import { ajouterBatiments, ajouterMessage, ecrireForfait, fusionnerActivite, lireHistorique, lireReglage, nettoyer, recevoirProgression, retirerBatiments } from './stockage'
 
 declare const self: ServiceWorkerGlobalScope
 
@@ -107,6 +107,9 @@ self.addEventListener('push', e => {
   } catch {
     return
   }
+  // L'état du forfait voyage avec n'importe quel push (BRIEF.md, « Forfait »).
+  const forfait = lireForfait(brut)
+  if (forfait) e.waitUntil(ecrireForfait(forfait).catch(() => undefined))
   const s = lireSauvegarde(brut)
   if (s) {
     e.waitUntil(
