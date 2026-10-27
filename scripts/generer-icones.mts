@@ -132,14 +132,37 @@ const png = (
 }
 
 const L = logo()
-// La petite icône de la barre d'état : Android n'en garde que la silhouette, le casque seul suffit.
-const CASQUE_SEUL = L.slice(LIGNE_CASQUE).map(l => l.slice(0, LARGEUR_CASQUE))
+// Le casque seul, sans le bout de la queue de bulle posé sur sa première ligne. C'est l'icône de l'écran
+// d'accueil (le logo entier y serait minuscule une fois découpé par Android ; choisi le 27 octobre 2026) et,
+// en silhouette, la petite icône de la barre d'état.
+const CASQUE_SEUL = L.slice(LIGNE_CASQUE).map((l, y) => l.slice(0, LARGEUR_CASQUE).map((c, x) => (y === 0 && x >= 14 ? null : c)))
+
+// Le plus grand agrandissement entier (un pixel du dessin = n pixels de l'écran, donc net) qui tient :
+// dans le cercle sûr de 80 % pour une icône maskable, dans 7/8 de la largeur sinon.
+const echelle = (g: Grille, taille: number, maskable: boolean): number => {
+  const h = g.length
+  const l = g[0]!.length
+  if (!maskable) return Math.floor((taille * 7) / 8 / Math.max(l, h))
+  let rayon = 0
+  g.forEach((ligne, y) =>
+    ligne.forEach((c, x) => {
+      if (c) rayon = Math.max(rayon, Math.hypot(Math.max(Math.abs(x - l / 2), Math.abs(x + 1 - l / 2)), Math.max(Math.abs(y - h / 2), Math.abs(y + 1 - h / 2))))
+    }),
+  )
+
+  return Math.floor((taille * 0.4) / rayon)
+}
+
+// Une icône par densité d'écran Android (48 dp × 1 à 4) et la 512 du manifeste : aucune n'est réduite par le
+// téléphone, qui prend la taille la plus proche.
+// Le manifeste les déclare toutes (public/manifest.webmanifest).
+const TAILLES = [48, 72, 96, 144, 192, 512]
+for (const taille of TAILLES) {
+  writeFileSync(new URL(`icones/icone-${taille}.png`, PUBLIC), png([taille, taille], CASQUE_SEUL, echelle(CASQUE_SEUL, taille, false), ASPHALTE))
+  writeFileSync(new URL(`icones/icone-maskable-${taille}.png`, PUBLIC), png([taille, taille], CASQUE_SEUL, echelle(CASQUE_SEUL, taille, true), ASPHALTE))
+}
 
 writeFileSync(new URL('logo.svg', PUBLIC), svg(L))
-writeFileSync(new URL('icones/icone-192.png', PUBLIC), png([192, 192], L, 5, ASPHALTE))
-writeFileSync(new URL('icones/icone-512.png', PUBLIC), png([512, 512], L, 13, ASPHALTE))
-// Maskable : le dessin reste dans le cercle sûr de 80 %.
-writeFileSync(new URL('icones/icone-maskable-512.png', PUBLIC), png([512, 512], L, 10, ASPHALTE))
 writeFileSync(new URL('icones/favicon-32.png', PUBLIC), png([32, 32], L, 1, null))
 writeFileSync(new URL('icones/badge-96.png', PUBLIC), png([96, 96], CASQUE_SEUL, 4, null, { teinte: '#FFFFFF' }))
 
@@ -218,4 +241,4 @@ for (const [situation, role] of Object.entries(ROLES))
       png(IMAGE, ouvrier(role), 14, `#${badge}`, { decor: marquage, bas: IMAGE[1] - SOL + 4 }),
     )
 
-console.log(`Logo, 5 icônes, 5 ouvriers et ${5 * BADGES.length} images de notification écrits dans public/`)
+console.log(`Logo, ${TAILLES.length * 2 + 2} icônes, 5 ouvriers et ${5 * BADGES.length} images de notification écrits dans public/`)
