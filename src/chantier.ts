@@ -155,7 +155,7 @@ export const chantiersDeLaScene = (chantiers: Chantier[]): Chantier[] =>
 const ETOILES = Array.from({ length: 14 }, (_, i) => {
   const r = graine(`etoile-${i}`)
 
-  return `<i style="left:${(r() * 96).toFixed(1)}%;top:${(r() * 55).toFixed(1)}%;animation-delay:${(r() * -4).toFixed(2)}s"></i>`
+  return `<i aria-hidden="true" style="left:${(r() * 96).toFixed(1)}%;top:${(r() * 55).toFixed(1)}%;animation-delay:${(r() * -4).toFixed(2)}s"></i>`
 }).join('')
 
 export const scene = (chantiers: Chantier[], quartier: Batiment[]): string => {
@@ -186,7 +186,9 @@ export const scene = (chantiers: Chantier[], quartier: Batiment[]): string => {
   return `
     <section class="scene" aria-label="Le quartier. ${quartier.length} bâtiments finis, ${enCoursIci.length} chantiers en cours">
       <div class="ciel">
-        <span class="lune" aria-hidden="true"></span><span aria-hidden="true">${ETOILES}</span>
+        <span class="lune" aria-hidden="true"></span>${ETOILES}
+        <button class="defiler gauche" type="button" data-sens="-1" aria-label="Voir les bâtiments plus anciens" hidden>${CHEVRON}</button>
+        <button class="defiler droite" type="button" data-sens="1" aria-label="Revenir aux plus récents" hidden>${CHEVRON}</button>
         <div class="horizon" tabindex="0" aria-label="La rue du quartier, à faire défiler">
           <div class="rue">
             ${visibles.map(b => batiment(b, !premiereVisite && !vusBatiments.has(b.id))).join('')}
@@ -285,10 +287,25 @@ const envoler = (source: HTMLElement, cible: HTMLElement): Promise<void> => {
   })
 }
 
-export const animerScene = async (racine: HTMLElement, quartier: Batiment[]): Promise<void> => {
-  // La rue s'ouvre sur sa fin : les bâtiments les plus récents et les chantiers en cours.
+// Les flèches au bord de la rue : elles disent qu'il reste à voir de ce côté, et y mènent d'un toucher.
+const brancherDefilement = (racine: HTMLElement): void => {
   const horizon = racine.querySelector<HTMLElement>('.horizon')
-  if (horizon) horizon.scrollLeft = horizon.scrollWidth
+  if (!horizon) return
+  const fleches = [...racine.querySelectorAll<HTMLButtonElement>('.defiler')]
+  const montrer = () => {
+    const reste = horizon.scrollWidth - horizon.clientWidth - horizon.scrollLeft
+    for (const f of fleches) f.hidden = f.dataset.sens === '-1' ? horizon.scrollLeft < 4 : reste < 4
+  }
+  for (const f of fleches)
+    f.addEventListener('click', () => horizon.scrollBy({ left: Number(f.dataset.sens) * horizon.clientWidth * 0.8, behavior: 'smooth' }))
+  horizon.addEventListener('scroll', montrer, { passive: true })
+  // La rue s'ouvre sur sa fin : les bâtiments les plus récents et les chantiers en cours.
+  horizon.scrollLeft = horizon.scrollWidth
+  montrer()
+}
+
+export const animerScene = async (racine: HTMLElement, quartier: Batiment[]): Promise<void> => {
+  brancherDefilement(racine)
   const vusEtages = lireVu<Record<string, number>>(ETAGES_VUS, {})
   const envols = lireVu<string[]>(ENVOLS_VUS, [])
   const cible = racine.querySelector<HTMLElement>('.case.aujourdhui')
@@ -340,4 +357,7 @@ export const carte = (c: Chantier): string => {
     </article>`
 }
 
-export const CROIX = `<svg viewBox="0 0 16 16" width="16" height="16" aria-hidden="true"><path d="M3 3l10 10M13 3L3 13" stroke="currentColor" stroke-width="2" stroke-linecap="square"/></svg>`
+// Un chevron en pixels, pointé vers la gauche ; la flèche de droite le retourne en CSS.
+const CHEVRON = `<svg viewBox="0 0 6 8" width="12" height="16" shape-rendering="crispEdges" fill="currentColor" aria-hidden="true"><rect x="3" y="0" width="2" height="2"/><rect x="1" y="2" width="2" height="2"/><rect x="0" y="3" width="2" height="2"/><rect x="1" y="4" width="2" height="2"/><rect x="3" y="6" width="2" height="2"/></svg>`
+
+export const CROIX =`<svg viewBox="0 0 16 16" width="16" height="16" aria-hidden="true"><path d="M3 3l10 10M13 3L3 13" stroke="currentColor" stroke-width="2" stroke-linecap="square"/></svg>`

@@ -1,7 +1,7 @@
 /// <reference lib="webworker" />
 // Le service worker : reçoit le push, montre la notification, garde le message dans l'historique.
 import { enCours, estFini, faites, image, lireMessage, lireProgression, lireSauvegarde, titre, type Message, type Progression } from './message'
-import { ajouterActivite, ajouterBatiments, ajouterMessage, ecrireChantier, fusionnerActivite, jourDe, lireChantier, lireHistorique, lireReglage } from './stockage'
+import { ajouterActivite, ajouterBatiments, ajouterMessage, ecrireChantier, fusionnerActivite, jourDe, lireChantier, lireHistorique, lireReglage, retirerBatiments } from './stockage'
 
 declare const self: ServiceWorkerGlobalScope
 
@@ -127,8 +127,13 @@ self.addEventListener('push', e => {
       (async () => {
         await fusionnerActivite(s.jours.map(([jour, briques, murs]) => ({ jour, briques, murs })))
         await ajouterBatiments(s.batiments)
-        await self.registration.showNotification('Hého · Mur du chef restauré', {
-          body: `${s.jours.length} jour${s.jours.length > 1 ? 's' : ''} et ${s.batiments.length} bâtiment${s.batiments.length > 1 ? 's' : ''} repris du PC.`,
+        const retires = s.retirer ? await retirerBatiments(s.retirer) : 0
+        const corps = [
+          s.jours.length || s.batiments.length ? `${s.jours.length} jour${s.jours.length > 1 ? 's' : ''} et ${s.batiments.length} bâtiment${s.batiments.length > 1 ? 's' : ''} repris du PC.` : '',
+          retires ? `${retires} bâtiment${retires > 1 ? 's' : ''} retiré${retires > 1 ? 's' : ''} du quartier.` : '',
+        ].filter(Boolean).join(' ')
+        await self.registration.showNotification(s.retirer ? 'Hého · Quartier mis à jour' : 'Hého · Mur du chef restauré', {
+          body: corps || 'Rien à changer.',
           tag: 'sauvegarde',
           silent: true,
           icon: './icones/icone-192.png',

@@ -157,6 +157,8 @@ export type Sauvegarde = {
   sessionId: string
   jours: [jour: string, briques: number, murs: number][]
   batiments: { id: string; session: string; couleur: string; titre: string | null; etages: number; date: number }[]
+  // Des préfixes d'id : les bâtiments qui commencent ainsi quittent le quartier (« essai- » pour des bâtiments de test).
+  retirer?: string[]
 }
 
 export const lireSauvegarde = (brut: unknown): Sauvegarde | null => {
@@ -176,5 +178,7 @@ export const lireSauvegarde = (brut: unknown): Sauvegarde | null => {
     return valide ? [{ id, session, couleur, titre: titre as string | null, etages, date }] : []
   })
 
-  return { v: 1, type: 'sauvegarde', sessionId: s.sessionId, jours, batiments }
+  const retirer = Array.isArray(s.retirer) ? s.retirer.filter(chaine) : []
+
+  return { v: 1, type: 'sauvegarde', sessionId: s.sessionId, jours, batiments, ...(retirer.length ? { retirer } : {}) }
 }

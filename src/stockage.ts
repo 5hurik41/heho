@@ -153,3 +153,14 @@ export const ecrireReglage = async (s: Situation, r: Reglage): Promise<void> => 
   const db = await ouvrir()
   await attendre(db.transaction(REGLAGES, 'readwrite').objectStore(REGLAGES).put(r, s))
 }
+
+// Retire du quartier les bâtiments dont l'id commence par l'un de ces préfixes ; renvoie combien sont partis.
+export const retirerBatiments = async (prefixes: string[]): Promise<number> => {
+  const db = await ouvrir()
+  const store = db.transaction(QUARTIER, 'readwrite').objectStore(QUARTIER)
+  const cles = (await attendre(store.getAllKeys())) as string[]
+  const partants = cles.filter(c => prefixes.some(p => c.startsWith(p)))
+  for (const c of partants) await attendre(store.delete(c))
+
+  return partants.length
+}

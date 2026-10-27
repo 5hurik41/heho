@@ -143,6 +143,14 @@ h3 { margin: 0; font-size: 17px; }
 .horizon { position: absolute; inset: 0 0 8px; overflow-x: auto; overflow-y: hidden; overscroll-behavior-x: contain; scrollbar-width: thin; scrollbar-color: var(--trait) transparent; }
 .rue { display: flex; align-items: flex-end; gap: 3px; min-width: 100%; width: max-content; height: 100%; padding: 0 10px; box-sizing: border-box; }
 .chantiers { margin-left: auto; padding-left: 12px; display: flex; align-items: flex-end; gap: 8px; }
+/* Une flèche au bord de la rue quand il reste à voir de ce côté ; elle disparaît au bout. */
+.defiler { position: absolute; z-index: 2; top: 38px; width: 44px; height: 44px; display: grid; place-items: center; padding: 0; border: 2px solid var(--trait); border-radius: var(--rayon); background: var(--barre); color: var(--lampe); animation: inviter 1.6s ease-in-out infinite; }
+.defiler.gauche { left: 6px; }
+.defiler.droite { right: 6px; }
+.defiler.droite svg { transform: scaleX(-1); }
+@keyframes inviter { 50% { translate: -3px 0; } }
+.defiler.droite { animation-name: inviter-droite; }
+@keyframes inviter-droite { 50% { translate: 3px 0; } }
 .parcelle { display: flex; align-items: flex-end; gap: 2px; }
 .equipe { display: flex; align-items: end; }
 .ouvrier { position: relative; width: 40px; height: 40px; flex-shrink: 0; }
@@ -194,7 +202,7 @@ h3 { margin: 0; font-size: 17px; }
 .resume { font-size: 13px; color: var(--craie-douce); }
 
 @media (prefers-reduced-motion: reduce) {
-  .ouvrier .image-2, .ciel > i, .etage i.scintille, .etage.nouveau, .bat.neuf, .case.pulse { animation: none; }
+  .ouvrier .image-2, .ciel > i, .defiler, .etage i.scintille, .etage.nouveau, .bat.neuf, .case.pulse { animation: none; }
 }
 
 /* ── Les chantiers ── */
