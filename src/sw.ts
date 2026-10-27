@@ -1,7 +1,7 @@
 /// <reference lib="webworker" />
 // Le service worker : reçoit le push, montre la notification, garde le message dans l'historique.
 import { enCours, estFini, faites, image, lireMessage, lireProgression, lireSauvegarde, titre, type Message, type Progression } from './message'
-import { ajouterActivite, ajouterBatiments, ajouterMessage, ecrireChantier, fusionnerActivite, jourDe, lireChantier, lireReglage } from './stockage'
+import { ajouterActivite, ajouterBatiments, ajouterMessage, ecrireChantier, fusionnerActivite, jourDe, lireChantier, lireHistorique, lireReglage } from './stockage'
 
 declare const self: ServiceWorkerGlobalScope
 
@@ -159,8 +159,12 @@ self.addEventListener('push', e => {
   e.waitUntil(
     (async () => {
       await effacerLesTermines()
+      // Un lancement de tâche de fond livré après sa fin (téléphone en veille) va dans l'historique, sans écraser
+      // la notification de fin : on remontre celle-ci, sans bruit (Chrome veut une notification par push).
+      const fin = m.situation === 'fond' && m.tache ? (await lireHistorique()).find(x => x.tache === m.tache && x.situation === 'fond-fini') : undefined
       await ajouterMessage(m)
-      await montrer(m)
+      if (fin) await self.registration.showNotification(titre(fin), { body: fin.texte, tag: `fond-${m.tache}`, silent: true, icon: './icones/icone-192.png', badge: './icones/badge-96.png' })
+      else await montrer(m)
       await prevenirLesFenetres('historique')
     })(),
   )
