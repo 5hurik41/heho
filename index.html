@@ -1,0 +1,25 @@
+<!doctype html>
+<html lang="fr">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="theme-color" content="#111214">
+  <meta name="description" content="Hého : les appels de tes sessions Claude Code, sur ton téléphone.">
+  <title>Hého</title>
+  <link rel="manifest" href="./manifest.webmanifest">
+  <link rel="icon" href="./icones/favicon-32.png" sizes="32x32" type="image/png">
+</head>
+<body>
+  <header class="barre">
+    <span class="marque"><img src="./logo.svg" alt="" width="46" height="36">HÉHO</span>
+    <span class="etat" id="etat" hidden>PC associé</span>
+  </header>
+  <div class="marquage" aria-hidden="true"></div>
+  <main id="ecran"></main>
+  <nav class="nav" id="nav" hidden>
+    <a href="#historique">Historique</a>
+    <a href="#reglages">Réglages</a>
+  </nav>
+  <script type="module" src="./src/main.ts"></script>
+</body>
+</html>

@@ -1,0 +1,9 @@
+node_modules/
+dist/
+# Le dépôt public ne contient que l'appli : les notes de travail restent sur le PC.
+BRIEF.md
+CLAUDE.md
+docs/
+# Rien de secret dans le dépôt : la clé privée VAPID et l'abonnement restent sur le PC.
+*.pem
+abonnement*.json

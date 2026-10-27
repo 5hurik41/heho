@@ -1,0 +1,68 @@
+// Le contenu d'un push, tel que le mod notify-worker l'envoie (chiffré en aes128gcm, JSON une fois déchiffré).
+// C'est la seule définition du format : le mod s'y réfère.
+
+export const SITUATIONS = ['question', 'permission', 'done', 'recap', 'budget'] as const
+export type Situation = (typeof SITUATIONS)[number]
+
+export type Message = {
+  v: 1
+  // Unique par envoi : un rappel a son propre id.
+  id: string
+  // Une session = une notification : les rappels de la même session la remplacent.
+  sessionId: string
+  // Le nom et la couleur du badge, venus du mod session-badge (« VITRINE L3 », « #f9e2af »).
+  session: string
+  couleur: string
+  situation: Situation
+  texte: string
+  // 0 au premier envoi, puis 1, 2, 3 pour les rappels à 2, 5 et 10 minutes.
+  rappel: number
+  // Millisecondes depuis 1970, heure du PC.
+  date: number
+}
+
+// Le PC envoie la situation, l'appli écrit le titre (BRIEF.md, « Langue de l'interface »).
+export const TITRES: Record<Situation, string> = {
+  question: 'Claude te pose une question',
+  permission: 'Claude demande ta permission',
+  done: 'Claude a fini',
+  recap: 'Récap avec des questions',
+  budget: 'Alerte budget',
+}
+
+// Le libellé court, dans l'historique.
+export const LIBELLES: Record<Situation, string> = {
+  question: 'Question',
+  permission: 'Permission',
+  done: 'Terminé',
+  recap: 'Récap',
+  budget: 'Budget',
+}
+
+export const titre = (m: Message): string => `${m.session} · ${TITRES[m.situation]}`
+
+const chaine = (x: unknown): x is string => typeof x === 'string' && x.length > 0 && x.length < 2000
+const nombre = (x: unknown): x is number => typeof x === 'number' && Number.isFinite(x)
+
+// Un push mal formé est ignoré plutôt que d'afficher n'importe quoi.
+export const lireMessage = (brut: unknown): Message | null => {
+  if (typeof brut !== 'object' || brut === null) return null
+  const m = brut as Record<string, unknown>
+  if (m.v !== 1) return null
+  if (!chaine(m.id) || !chaine(m.sessionId) || !chaine(m.session) || !chaine(m.texte)) return null
+  if (typeof m.couleur !== 'string' || !/^#[0-9a-f]{6}$/i.test(m.couleur)) return null
+  if (!SITUATIONS.includes(m.situation as Situation)) return null
+  if (!nombre(m.rappel) || !nombre(m.date)) return null
+
+  return {
+    v: 1,
+    id: m.id,
+    sessionId: m.sessionId,
+    session: m.session,
+    couleur: m.couleur,
+    situation: m.situation as Situation,
+    texte: m.texte,
+    rappel: m.rappel,
+    date: m.date,
+  }
+}
