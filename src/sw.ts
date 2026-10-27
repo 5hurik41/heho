@@ -54,14 +54,14 @@ self.addEventListener('fetch', e => {
 })
 
 const montrer = async (m: Message): Promise<void> => {
-  // Le lancement d'une tâche de fond reste discret ; sa fin sonne comme les autres appels.
-  const reglage = m.situation === 'fond' ? { son: false, vibration: false } : await lireReglage(m.situation)
+  // Son et vibration selon les réglages de la situation, lancement d'une tâche de fond compris.
+  const reglage = await lireReglage(m.situation)
   const options: Options = {
     body: m.texte,
     // Le même tag par session : un rappel remplace la notification précédente au lieu de s'empiler. Une tâche de
     // fond a le sien, que sa fin reprend.
     tag: m.tache ? `fond-${m.tache}` : m.sessionId,
-    renotify: m.situation !== 'fond',
+    renotify: true,
     icon: './icones/icone-192.png',
     image: image(m),
     badge: './icones/badge-96.png',

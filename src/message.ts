@@ -1,13 +1,13 @@
 // Le contenu d'un push, tel que le mod notify-worker l'envoie (chiffré en aes128gcm, JSON une fois déchiffré).
 // C'est la seule définition du format : le mod s'y réfère.
 
-// « fond » : une tâche lancée en arrière-plan (notification discrète) ; « fond-fini » : la même, terminée.
+// « fond » : une tâche lancée en arrière-plan ; « fond-fini » : la même, terminée, qui remplace son lancement.
 export const SITUATIONS = ['question', 'permission', 'done', 'recap', 'budget', 'fond', 'fond-fini'] as const
 export type Situation = (typeof SITUATIONS)[number]
 // Celles qui attendent une réponse de la personne : l'historique les marque d'une bande de rubalise.
 export const ATTENTES: readonly Situation[] = ['question', 'permission', 'recap']
-// Celles dont on règle le son et la vibration : le lancement d'une tâche de fond reste toujours discret.
-export const REGLABLES: readonly Situation[] = SITUATIONS.filter(s => s !== 'fond')
+// Celles dont on règle le son et la vibration dans Réglages : toutes (BRIEF.md, « Tâches de fond »).
+export const REGLABLES: readonly Situation[] = SITUATIONS
 
 export type Message = {
   v: 1
