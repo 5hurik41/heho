@@ -99,6 +99,18 @@ export const marquerRepondu = async (appel: string, texte: string, maintenant = 
     if (m.attendue?.appel === appel) await attendre(store.put({ ...m, repondu: { texte, date: maintenant } }))
 }
 
+// La dernière erreur du service worker, que Réglages montre : le téléphone n'a pas de console à lire.
+export const noterErreur = async (texte: string, maintenant = Date.now()): Promise<void> => {
+  const db = await ouvrir()
+  await attendre(db.transaction(REGLAGES, 'readwrite').objectStore(REGLAGES).put({ texte, date: maintenant }, 'derniereErreur'))
+}
+
+export const lireErreur = async (): Promise<{ texte: string; date: number } | undefined> => {
+  const db = await ouvrir()
+
+  return (await attendre(db.transaction(REGLAGES).objectStore(REGLAGES).get('derniereErreur'))) as { texte: string; date: number } | undefined
+}
+
 // La boîte aux lettres des réponses, reçue du PC (push `cle`), dans les réglages.
 export const ecrireBoite = async (c: Cle): Promise<void> => {
   const db = await ouvrir()

@@ -9,6 +9,7 @@ import {
   decernerMedailles,
   ecrireBoite,
   lireBoite,
+  noterErreur,
   ecrireForfait,
   fusionnerActivite,
   lireHistorique,
@@ -96,13 +97,24 @@ const montrer = async (m: Message): Promise<void> => {
     image: image(m),
     badge: './icones/badge-96.png',
     timestamp: m.date,
-    silent: !reglage.son,
-    vibrate: reglage.vibration ? [180, 90, 180] : [],
+    ...sonEtVibration(reglage, [180, 90, 180]),
     data: { id: m.id, ...(m.attendue ? { fiche: m.id } : {}) },
-    ...(peutRepondre(m, await lireBoite()) ? { actions: boutons(m) } : {}),
   }
-  await self.registration.showNotification(titre(m), options)
+  // Une notification doit paraître quoi qu'il arrive : si l'option la plus riche échoue, on note l'erreur (Réglages
+  // la montre) et on montre l'appel tout simple.
+  try {
+    const boite = await lireBoite().catch(() => undefined)
+    await self.registration.showNotification(titre(m), { ...options, ...(peutRepondre(m, boite) ? { actions: boutons(m) } : {}) })
+  } catch (erreur) {
+    await noterErreur(`Notification « ${m.situation} » : ${String(erreur)}`).catch(() => undefined)
+    await self.registration.showNotification(titre(m), { body: m.texte, tag: options.tag, icon: options.icon, badge: options.badge, data: options.data })
+  }
 }
+
+// Chrome refuse une notification silencieuse qui vibre : sans son, pas de vibration (une page web ne sait pas vibrer
+// sans son, BRIEF.md, « Tâches de fond »).
+const sonEtVibration = (r: { son: boolean; vibration: boolean }, motif: number[]): { silent: boolean; vibrate?: number[] } =>
+  r.son ? { silent: false, vibrate: r.vibration ? motif : [] } : { silent: true }
 
 // Une médaille gagnée : sa propre notification, avec sa grande image (public/medailles/), son et vibration selon Réglages.
 const montrerMedaille = async (m: Medaille): Promise<void> => {
@@ -113,8 +125,7 @@ const montrerMedaille = async (m: Medaille): Promise<void> => {
     icon: './icones/icone-192.png',
     image: `./medailles/${m.id}.png`,
     badge: './icones/badge-96.png',
-    silent: !reglage.son,
-    vibrate: reglage.vibration ? [120, 60, 120, 60, 240] : [],
+    ...sonEtVibration(reglage, [120, 60, 120, 60, 240]),
     data: { ecran: 'historique', medaille: m.id },
   }
   await self.registration.showNotification(`HÉHO · Médaille : ${m.titre}`, options)

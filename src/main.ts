@@ -23,6 +23,7 @@ import {
   lireChantiers,
   decernerMedailles,
   lireBoite,
+  lireErreur,
   lireForfaitGarde,
   lireMedailles,
   lireHistorique,
@@ -320,6 +321,16 @@ const forfait = async (): Promise<void> => {
 
 const LIEU_LIBRE = 'Lieu choisi'
 
+// En bas de Réglages : si les réponses sont activées, et la dernière erreur du service worker s'il y en a une.
+const etatTechnique = async (): Promise<string> => {
+  const [boite, erreur] = await Promise.all([lireBoite(), lireErreur()])
+  const quand = (d: number) => new Date(d).toLocaleString('fr-FR', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })
+
+  return `<p class="aide">Réponses depuis le téléphone : ${boite ? `activées (${quand(boite.date)})` : 'pas encore activées, le PC enverra la clé'}.</p>${
+    erreur ? `<p class="aide">Dernière erreur (${quand(erreur.date)}) : ${echapper(erreur.texte)}</p>` : ''
+  }`
+}
+
 // « Soleil à 12° au-dessus de l'horizon · interface claire »
 const direSoleil = (): string => {
   const s = cielActuel()?.soleil
@@ -372,6 +383,7 @@ const reglages = async (): Promise<void> => {
     </section>
     <button class="bouton" id="test" type="button">Envoyer une notification de test</button>
     <p class="aide" id="message" role="status"></p>
+    ${await etatTechnique()}
     <p class="aide version">Version du ${new Date(__CONSTRUIT__).toLocaleString('fr-FR', { day: 'numeric', month: 'long', hour: '2-digit', minute: '2-digit' })}</p>`
   const etatSoleil = ecran.querySelector<HTMLElement>('#etat-soleil')!
   const changerVille = (v: Ville | null): void => {
