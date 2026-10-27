@@ -274,8 +274,9 @@ h3 { margin: 0; font-size: 17px; }
   display: flex;
   flex-direction: column;
   border: 0;
+  /* Un bord net, comme le marquage au sol : un liseré jaune ne suit pas bien un coin arrondi. */
   border-top: 4px solid var(--lampe);
-  border-radius: 10px 10px 0 0;
+  border-radius: 0;
   background: var(--carte);
   color: var(--craie);
   transition: translate 0.2s ease-out;
