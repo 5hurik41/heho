@@ -1,8 +1,9 @@
 // Les chantiers : la progression de chaque session (le plan de task-steps). En haut de l'historique, le quartier :
-// sous un ciel de nuit, la ligne d'horizon des chantiers finis, un bâtiment chacun, et à droite les chantiers en
+// sous le ciel de l'heure (src/soleil.ts), la ligne d'horizon des chantiers finis, un bâtiment chacun, et à droite les chantiers en
 // cours, qui montent d'un étage par étape faite. Sous la scène, le mur du chef, une case par jour comme le mur
 // d'activité de GitHub. Un chantier fini s'envole vers la case du jour avant de rejoindre l'horizon.
 import { enCours, estFini, faites, type Role } from './message'
+import { cielActuel } from './soleil'
 import { jourDe, type Batiment, type Chantier, type Journee } from './stockage'
 
 // Au-delà, un chantier non terminé est considéré comme abandonné : la scène ne le montre plus.
@@ -79,7 +80,8 @@ const graine = (texte: string): (() => number) => {
 const FACADES = ['#3A3C40', '#34373D', '#2F3237', '#3D3A36']
 const TOITS = ['plat', 'antenne', 'citerne', 'pignon'] as const
 
-type Facade = { largeur: number; fond: string; toit: (typeof TOITS)[number]; colonnes: number; allumees: (etage: number, col: number) => boolean; scintille: (etage: number, col: number) => boolean }
+// `tirage` : 0 à 9 par vitre ; le soleil décide combien de tirages s'allument (reglesLumieres, src/soleil.ts).
+type Facade = { largeur: number; fond: string; toit: (typeof TOITS)[number]; colonnes: number; tirage: (etage: number, col: number) => number; scintille: (etage: number, col: number) => boolean }
 
 const facade = (id: string): Facade => {
   const r = graine(id)
@@ -93,7 +95,7 @@ const facade = (id: string): Facade => {
     fond,
     toit,
     colonnes: largeur >= 30 ? 3 : 2,
-    allumees: (e, c) => tirages[e * 3 + c]! < 0.55,
+    tirage: (e, c) => Math.floor(tirages[e * 3 + c]! * 10),
     scintille: (e, c) => tirages[e * 3 + c]! < 0.06,
   }
 }
@@ -104,7 +106,7 @@ const fenetres = (f: Facade, etages: number, construits: number, nouveauxDes: nu
     const etage = etages - 1 - i
     if (etage >= construits) return `<span class="etage vide"></span>`
     const vitres = Array.from({ length: f.colonnes }, (_, c) =>
-      `<i class="${f.allumees(etage, c) ? 'allumee' : ''}${f.scintille(etage, c) ? ' scintille' : ''}"></i>`,
+      `<i class="l${f.tirage(etage, c)}${f.scintille(etage, c) ? ' scintille' : ''}"></i>`,
     ).join('')
 
     return `<span class="etage${etage >= nouveauxDes ? ' nouveau' : ''}" style="animation-delay:${(etage - nouveauxDes) * 180}ms">${vitres}</span>`
@@ -128,7 +130,18 @@ const ouvrier = (role: Role, i: number): string => `
   </span>`
 
 // Une parcelle en chantier : le bâtiment monte d'un étage par étape faite, l'échafaudage marque ceux qui restent.
-const parcelle = (c: Chantier, seule: boolean, vus: Record<string, number>): string => {
+// La grue de la planche (docs/bloc3.html) : sa flèche pivote lentement, son crochet se balance.
+const GRUE = `
+  <svg class="grue" width="58" height="92" viewBox="0 0 96 150" shape-rendering="crispEdges" aria-hidden="true">
+    <rect x="10" y="6" width="6" height="144" fill="#F5C542"/>
+    ${[14, 40, 66, 92, 118].map(y => `<rect x="10" y="${y}" width="6" height="2" fill="#B8901F"/>`).join('')}
+    <g class="fleche"><rect x="0" y="4" width="92" height="5" fill="#F5C542"/><rect x="0" y="9" width="10" height="6" fill="#5E606A"/>
+      <g class="crochet"><rect x="73" y="9" width="1" height="46" fill="#8C8F96"/><rect x="70" y="55" width="8" height="4" fill="#FF7A2F"/><rect x="69" y="59" width="10" height="6" fill="#C9962B"/></g></g>
+    <rect x="6" y="0" width="14" height="6" fill="#26282B"/>
+  </svg>`
+
+// `grue` : le premier chantier en cours de la scène a la sienne. Toucher un chantier en cours ouvre le mini-jeu.
+const parcelle = (c: Chantier, seule: boolean, vus: Record<string, number>, grue: boolean): string => {
   const id = c.finiA !== undefined ? `${c.sessionId}:${c.finiA}` : c.sessionId
   const f = facade(id)
   const total = Math.min(Math.max(c.etapes.length, 1), ETAGES_MAX)
@@ -138,7 +151,10 @@ const parcelle = (c: Chantier, seule: boolean, vus: Record<string, number>): str
   const envol = fini && c.finiA !== undefined ? ` data-envol="${echapper(id)}"` : ''
 
   return `
-    <div class="parcelle${fini ? ' fini' : ''}" data-session="${echapper(c.sessionId)}" data-construits="${construits}"${envol}>
+    <div class="parcelle${fini ? ' fini' : ''}" data-session="${echapper(c.sessionId)}" data-construits="${construits}"${envol}${
+      fini ? '' : ` role="button" tabindex="0" aria-haspopup="dialog" aria-label="${echapper(c.session)} en chantier : empiler des briques en attendant"`
+    }>
+      ${grue && !fini ? GRUE : ''}
       <div class="equipe">${equipe.map(ouvrier).join('')}</div>
       <div class="bat chantier-bat toit-${fini ? f.toit : 'plat'}" style="width:${f.largeur}px;--fond:${f.fond};--badge:${c.couleur}">
         ${fini ? '' : `<span class="fanion" style="background:${c.couleur}"></span>`}
@@ -152,11 +168,31 @@ const estFiniRecemment = (c: Chantier): boolean => estFini(c) && c.finiA !== und
 export const chantiersDeLaScene = (chantiers: Chantier[]): Chantier[] =>
   chantiers.filter(c => (!estFini(c) && Date.now() - c.date < ACTIF_MS) || estFiniRecemment(c)).slice(0, CHANTIERS_MAX)
 
-const ETOILES = Array.from({ length: 14 }, (_, i) => {
+// Les étoiles s'effacent avec le jour (--etoiles, src/soleil.ts) ; chacune scintille à son rythme.
+const ETOILES = `<span class="etoiles" aria-hidden="true">${Array.from({ length: 14 }, (_, i) => {
   const r = graine(`etoile-${i}`)
 
-  return `<i aria-hidden="true" style="left:${(r() * 96).toFixed(1)}%;top:${(r() * 55).toFixed(1)}%;animation-delay:${(r() * -4).toFixed(2)}s"></i>`
-}).join('')
+  return `<i style="left:${(r() * 96).toFixed(1)}%;top:${(r() * 55).toFixed(1)}%;animation-delay:${(r() * -4).toFixed(2)}s"></i>`
+}).join('')}</span>`
+
+// Le soleil et la lune à leur vraie place : l'est à gauche, l'ouest à droite, la hauteur sur 50°. Appelé à chaque
+// dessin de la scène et chaque minute ensuite.
+export const placerAstres = (racine: ParentNode): void => {
+  const ciel = cielActuel()
+  if (!ciel) return
+  const x = (az: number): number => Math.min(96, Math.max(4, ((az - 60) / 240) * 100))
+  const y = (el: number): number => Math.min(80, (el / 50) * 80)
+  for (const [classe, astre] of [['soleil', ciel.soleil], ['lune', ciel.lune]] as const) {
+    const el = racine.querySelector<HTMLElement>(`.astre.${classe}`)
+    if (!el) continue
+    el.hidden = astre.elevation < -2
+    el.style.left = `${x(astre.azimut)}%`
+    el.style.bottom = `calc(8px + ${y(astre.elevation)}%)`
+  }
+  // La phase : l'ombre couvre la lune du côté encore sombre, de la nouvelle lune (toute) à la pleine (rien).
+  const l = racine.querySelector<HTMLElement>('.astre.lune')
+  if (l) l.style.setProperty('--ombre', `${(ciel.lune.croissante ? 1 : -1) * Math.round(16 * (1 - ciel.lune.eclairee))}px`)
+}
 
 export const scene = (chantiers: Chantier[], quartier: Batiment[]): string => {
   const enCoursIci = chantiersDeLaScene(chantiers)
@@ -186,14 +222,14 @@ export const scene = (chantiers: Chantier[], quartier: Batiment[]): string => {
   return `
     <section class="scene" aria-label="Le quartier. ${quartier.length} bâtiments finis, ${enCoursIci.length} chantiers en cours">
       <div class="ciel">
-        <span class="lune" aria-hidden="true"></span>${ETOILES}
+        ${ETOILES}<span class="astre soleil" aria-hidden="true" hidden></span><span class="astre lune" aria-hidden="true" hidden></span>
         <button class="defiler gauche" type="button" data-sens="-1" aria-label="Voir les bâtiments plus anciens" hidden>${CHEVRON}</button>
         <button class="defiler droite" type="button" data-sens="1" aria-label="Revenir aux plus récents" hidden>${CHEVRON}</button>
         <div class="horizon" tabindex="0" aria-label="La rue du quartier, à faire défiler">
           <div class="rue">
             ${visibles.map(b => batiment(b, !premiereVisite && !vusBatiments.has(b.id))).join('')}
             ${visibles.length || enCoursIci.length ? '' : `<div class="parcelle"><div class="equipe">${ouvrier('resting', 0)}</div></div>`}
-            <div class="chantiers">${enCoursIci.map(c => parcelle(c, enCoursIci.length === 1, vusEtages)).join('')}</div>
+            <div class="chantiers">${enCoursIci.map(c => parcelle(c, enCoursIci.length === 1, vusEtages, c === enCoursIci.find(x => !estFini(x)))).join('')}</div>
           </div>
         </div>
       </div>

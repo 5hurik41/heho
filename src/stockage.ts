@@ -1,4 +1,5 @@
 // L'historique, les chantiers et les réglages, dans IndexedDB : le service worker écrit, l'appli lit, hors ligne compris.
+import { gagnees, MEDAILLES, type Medaille } from './medailles'
 import { estFini, faites, type Forfait, type Message, type Progression, type Situation } from './message'
 
 const BASE = 'heho'
@@ -13,6 +14,9 @@ const QUARTIER = 'quartier'
 const BATIMENTS_MAX = 60
 // Le dernier état du forfait reçu du PC, une seule entrée.
 const FORFAIT = 'forfait'
+// Les médailles gagnées et leur date ; l'entrée DEJA_VU marque le premier calcul, fait en silence.
+const MEDAILLES_GAGNEES = 'medailles'
+const DEJA_VU = '__premier-calcul'
 // Au-delà, les plus anciens messages sont effacés.
 const GARDER = 200
 // Le nettoyage (BRIEF.md, « La suite », bloc 1) : un appel quitte l'historique après 30 jours ; un chantier, fini ou
@@ -38,7 +42,7 @@ export const jourDe = (ms: number): string => {
 
 const ouvrir = (): Promise<IDBDatabase> =>
   new Promise((resoudre, rejeter) => {
-    const req = indexedDB.open(BASE, 5)
+    const req = indexedDB.open(BASE, 6)
     // Chaque version ajoute ce qui lui manque : un téléphone en version 1 garde son historique.
     req.onupgradeneeded = e => {
       const db = req.result
@@ -50,6 +54,7 @@ const ouvrir = (): Promise<IDBDatabase> =>
       if (e.oldVersion < 3) db.createObjectStore(ACTIVITE, { keyPath: 'jour' })
       if (e.oldVersion < 4) db.createObjectStore(QUARTIER, { keyPath: 'id' }).createIndex('date', 'date')
       if (e.oldVersion < 5) db.createObjectStore(FORFAIT)
+      if (e.oldVersion < 6) db.createObjectStore(MEDAILLES_GAGNEES)
     }
     req.onsuccess = () => resoudre(req.result)
     req.onerror = () => rejeter(req.error)
@@ -155,14 +160,17 @@ export const effacerChantier = async (sessionId: string): Promise<void> => {
   await attendre(db.transaction(CHANTIERS, 'readwrite').objectStore(CHANTIERS).delete(sessionId))
 }
 
-export const lireReglage = async (s: Situation): Promise<Reglage> => {
+// Le son et la vibration de chaque situation, et de l'annonce d'une médaille.
+export type Reglable = Situation | 'medaille'
+
+export const lireReglage = async (s: Reglable): Promise<Reglage> => {
   const db = await ouvrir()
   const r = await attendre(db.transaction(REGLAGES).objectStore(REGLAGES).get(s))
 
   return (r as Reglage | undefined) ?? { son: true, vibration: true }
 }
 
-export const ecrireReglage = async (s: Situation, r: Reglage): Promise<void> => {
+export const ecrireReglage = async (s: Reglable, r: Reglage): Promise<void> => {
   const db = await ouvrir()
   await attendre(db.transaction(REGLAGES, 'readwrite').objectStore(REGLAGES).put(r, s))
 }
@@ -196,6 +204,30 @@ export const lireForfaitGarde = async (): Promise<Forfait | undefined> => {
   const db = await ouvrir()
 
   return (await attendre(db.transaction(FORFAIT).objectStore(FORFAIT).get('dernier'))) as Forfait | undefined
+}
+
+// Les médailles gagnées, et leur date.
+export const lireMedailles = async (): Promise<Map<string, number>> => {
+  const store = (await ouvrir()).transaction(MEDAILLES_GAGNEES).objectStore(MEDAILLES_GAGNEES)
+  const [cles, dates] = await Promise.all([attendre(store.getAllKeys()), attendre(store.getAll())])
+
+  return new Map((cles as string[]).map((c, i): [string, number] => [c, dates[i] as number]).filter(([c]) => c !== DEJA_VU))
+}
+
+// Note les médailles nouvellement gagnées et les rend, à annoncer. Le tout premier calcul (une mise à jour de
+// l'appli sur un téléphone qui a déjà un passé), et un calcul `silencieux` (une restauration du PC), les notent
+// sans les rendre : pas d'avalanche de notifications pour le passé.
+export const decernerMedailles = async (silencieux = false, maintenant = Date.now()): Promise<Medaille[]> => {
+  const [activite, quartier] = await Promise.all([lireActivite(), lireQuartier()])
+  const ids = gagnees([...activite.values()], quartier)
+  const store = (await ouvrir()).transaction(MEDAILLES_GAGNEES, 'readwrite').objectStore(MEDAILLES_GAGNEES)
+  const deja = new Set((await attendre(store.getAllKeys())) as string[])
+  const premier = !deja.has(DEJA_VU)
+  const nouvelles = MEDAILLES.filter(m => ids.has(m.id) && !deja.has(m.id))
+  for (const m of nouvelles) await attendre(store.put(maintenant, m.id))
+  if (premier) await attendre(store.put(maintenant, DEJA_VU))
+
+  return premier || silencieux ? [] : nouvelles
 }
 
 // Efface les appels et les chantiers trop vieux ; à chaque push reçu et à chaque ouverture de l'appli.

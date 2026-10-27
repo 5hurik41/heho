@@ -5,6 +5,7 @@ import { mkdirSync, writeFileSync } from 'node:fs'
 import { pathToFileURL } from 'node:url'
 import { homedir } from 'node:os'
 import { join } from 'node:path'
+import { grilleMedaille, MEDAILLES } from '../src/medailles.ts'
 import { BADGES, ROLES as ROLES_EQUIPE } from '../src/message.ts'
 
 const SPRITES = process.argv[2] ?? join(homedir(), '.claude', 'mods-perso', 'task-steps', 'hooks', 'sprites.ts')
@@ -246,4 +247,12 @@ for (const [situation, role] of Object.entries(ROLES))
       png(IMAGE, ouvrier(role), 14, `#${badge}`, { decor: marquage, bas: IMAGE[1] - SOL + 4 }),
     )
 
-console.log(`Logo, ${TAILLES.length * 2 + 2} icônes, ${Object.keys(ROLES).length} ouvriers et ${Object.keys(ROLES).length * BADGES.length} images de notification écrits dans public/`)
+// ── Les médailles : la grande image de leur notification, la médaille gagnée sur l'asphalte (src/medailles.ts) ──
+
+mkdirSync(new URL('medailles/', PUBLIC), { recursive: true })
+for (const m of MEDAILLES)
+  writeFileSync(new URL(`medailles/${m.id}.png`, PUBLIC), png(IMAGE, grilleMedaille(m, true), 12, ASPHALTE, { decor: marquage, bas: IMAGE[1] - SOL - 6 }))
+
+console.log(
+  `Logo, ${TAILLES.length * 2 + 2} icônes, ${Object.keys(ROLES).length} ouvriers, ${Object.keys(ROLES).length * BADGES.length} images de notification et ${MEDAILLES.length} médailles écrits dans public/`,
+)

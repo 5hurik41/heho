@@ -3,31 +3,42 @@ import '@fontsource/jersey-10'
 import '@fontsource/atkinson-hyperlegible-next/400.css'
 import '@fontsource/atkinson-hyperlegible-next/700.css'
 import './style.css'
-import { animerScene, carte, CROIX, echapper, horodatage, murDuChef, rafraichirHeures, scene } from './chantier'
+import { animerScene, carte, CROIX, echapper, horodatage, murDuChef, placerAstres, rafraichirHeures, scene } from './chantier'
+import { appliquer, BASCULE, cielActuel, ecrireVille, lireVille, reglesLumieres, VILLES, type Ville } from './soleil'
 import { CLE_PUBLIQUE_VAPID } from './config'
-import { fermerFeuille, ficheAppel, ficheBatiment, ouvrirFeuille } from './fiche'
+import { fermerFeuille, ficheAppel, ficheBatiment, ficheMedaille, ouvrirFeuille, vitrine } from './fiche'
+import { MEDAILLES } from './medailles'
 import { filtrer, pastilles, type Filtres } from './filtres'
 import { ecranForfait } from './forfait'
-import { ATTENTES, LIBELLES, OUVRIER, REGLABLES, TITRES, type Message, type Situation } from './message'
+import { ATTENTES, estFini, LIBELLES, OUVRIER, REGLABLES, TITRES, type Message, type Situation } from './message'
+import { chantierFini, ouvrirJeu } from './jeu'
 import { picto } from './pictos'
+import { animerRue, livrer } from './rue'
 import {
   ecrireReglage,
   effacerChantier,
   effacerMessage,
   lireActivite,
   lireChantiers,
+  decernerMedailles,
   lireForfaitGarde,
+  lireMedailles,
   lireHistorique,
   lireQuartier,
   lireReglage,
   nettoyer,
   viderHistorique,
+  type Reglable,
 } from './stockage'
 
 // L'heure du build, écrite par vite.config.ts : Réglages la montre, pour savoir quelle version tourne.
 declare const __CONSTRUIT__: string
 
 const ecran = document.querySelector<HTMLElement>('#ecran')!
+
+// Les couleurs du soleil avant le premier affichage, et les règles des fenêtres allumées.
+document.head.insertAdjacentHTML('beforeend', `<style>${reglesLumieres()}</style>`)
+appliquer()
 const nav = document.querySelector<HTMLElement>('#nav')!
 const etat = document.querySelector<HTMLElement>('#etat')!
 
@@ -114,6 +125,9 @@ const ligne = (m: Message): string => `
 // Les filtres choisis tiennent tant que l'appli reste ouverte.
 const filtres: Filtres = { sessions: new Set(), types: new Set() }
 
+// Un appel vient d'arriver : le livreur traversera la rue au prochain dessin de la scène.
+let livreurAttendu = false
+
 const nbFiltres = (): number => filtres.sessions.size + filtres.types.size
 
 // Le titre de la liste et, à droite, le bouton qui ouvre les filtres dans la feuille du bas ; sous le titre, les
@@ -168,12 +182,13 @@ const ouvrirFiltres = (messages: Message[]): void => {
 }
 
 const historique = async (): Promise<void> => {
-  const [messages, chantiers, activite, quartier] = await Promise.all([lireHistorique(), lireChantiers(), lireActivite(), lireQuartier()])
+  const [messages, chantiers, activite, quartier, obtenues] = await Promise.all([lireHistorique(), lireChantiers(), lireActivite(), lireQuartier(), lireMedailles()])
   const affiches = filtrer(messages, filtres)
   const isFiltre = affiches.length !== messages.length
   ecran.innerHTML = `
     ${scene(chantiers, quartier)}
     ${murDuChef(activite)}
+    ${vitrine(obtenues)}
     ${
       messages.length
         ? `${teteListe(messages)}
@@ -197,6 +212,12 @@ const historique = async (): Promise<void> => {
     a.addEventListener('click', ouvrir)
     a.addEventListener('keydown', e => (e.key === 'Enter' || e.key === ' ') && e.target === a && (e.preventDefault(), ouvrir()))
   })
+  ecran.querySelectorAll<HTMLButtonElement>('[data-medaille]').forEach(b =>
+    b.addEventListener('click', () => {
+      const m = MEDAILLES.find(x => x.id === b.dataset.medaille)
+      if (m) ouvrirFeuille(ficheMedaille(m, obtenues.get(m.id)))
+    }),
+  )
   ecran.querySelectorAll<HTMLElement>('[data-batiment]').forEach(el => {
     const ouvrir = () => {
       const b = quartier.find(x => x.id === el.dataset.batiment)
@@ -222,6 +243,21 @@ const historique = async (): Promise<void> => {
     }
     await viderHistorique()
     await historique()
+  })
+  placerAstres(ecran)
+  animerRue(ecran)
+  if (livreurAttendu) {
+    livreurAttendu = false
+    livrer(ecran)
+  }
+  // Toucher un chantier en cours : le mini-jeu, pour patienter.
+  ecran.querySelectorAll<HTMLElement>('.parcelle[role="button"]').forEach(el => {
+    const ouvrir = () => {
+      const c = chantiers.find(x => x.sessionId === el.dataset.session)
+      if (c) ouvrirJeu(c)
+    }
+    el.addEventListener('click', ouvrir)
+    el.addEventListener('keydown', e => (e.key === 'Enter' || e.key === ' ') && (e.preventDefault(), ouvrir()))
   })
   void animerScene(ecran, quartier)
 }
@@ -249,22 +285,51 @@ const forfait = async (): Promise<void> => {
 
 // ── Réglages ─────────────────────────────────────────────────────────────
 
+const LIEU_LIBRE = 'Lieu choisi'
+
+// « Soleil à 12° au-dessus de l'horizon · interface claire »
+const direSoleil = (): string => {
+  const s = cielActuel()?.soleil
+  if (!s) return ''
+  const e = Math.round(s.elevation)
+
+  return `${lireVille().nom} : soleil à ${Math.abs(e)}° ${e >= 0 ? "au-dessus de l'horizon" : "sous l'horizon"} · interface ${s.elevation >= BASCULE ? 'claire' : 'sombre'}.`
+}
+
 const reglages = async (): Promise<void> => {
   const lignes = await Promise.all(
-    REGLABLES.map(async s => {
+    [...REGLABLES, 'medaille' as const].map(async s => {
       const r = await lireReglage(s)
 
       return `
         <div class="reglage">
-          <strong>${LIBELLES[s]}</strong>
+          <strong>${s === 'medaille' ? 'Médaille' : LIBELLES[s]}</strong>
           <label><input type="checkbox" data-s="${s}" data-k="son" ${r.son ? 'checked' : ''}>Son</label>
           <label><input type="checkbox" data-s="${s}" data-k="vibration" ${r.vibration ? 'checked' : ''}>Vibration</label>
         </div>`
     }),
   )
+  const ville = lireVille()
+  const connue = VILLES.find(v => v.nom === ville.nom)
+  const libre = !connue && ville.nom === LIEU_LIBRE
   ecran.innerHTML = `
     <h2>Réglages</h2>
     ${lignes.join('')}
+    <section class="reglage-ville">
+      <h3><label for="ville">La ville du soleil</label></h3>
+      <p class="aide">Les couleurs de l'appli suivent la hauteur du soleil dans cette ville.</p>
+      <select id="ville">
+        <option value="">Selon le fuseau du téléphone</option>
+        ${VILLES.map(v => `<option${v === connue ? ' selected' : ''}>${echapper(v.nom)}</option>`).join('')}
+        <option value="autre"${libre ? ' selected' : ''}>Autre : latitude et longitude</option>
+      </select>
+      <div class="lieu-libre" id="lieu-libre"${libre ? '' : ' hidden'}>
+        <label>Latitude<input type="number" id="lat" min="-90" max="90" step="0.01" value="${libre ? ville.lat : ''}" inputmode="decimal"></label>
+        <label>Longitude<input type="number" id="lon" min="-180" max="180" step="0.01" value="${libre ? ville.lon : ''}" inputmode="decimal"></label>
+        <button class="bouton second" type="button" id="garder-lieu">Garder</button>
+      </div>
+      <p class="aide" id="etat-soleil" role="status">${direSoleil()}</p>
+    </section>
     <section class="carte-aide">
       <h3>Voir les appels en bandeau</h3>
       <p>Android décide seul si une notification s'affiche en haut de l'écran. Pour Hého, une seule fois :
@@ -275,9 +340,26 @@ const reglages = async (): Promise<void> => {
     <button class="bouton" id="test" type="button">Envoyer une notification de test</button>
     <p class="aide" id="message" role="status"></p>
     <p class="aide version">Version du ${new Date(__CONSTRUIT__).toLocaleString('fr-FR', { day: 'numeric', month: 'long', hour: '2-digit', minute: '2-digit' })}</p>`
+  const etatSoleil = ecran.querySelector<HTMLElement>('#etat-soleil')!
+  const changerVille = (v: Ville | null): void => {
+    ecrireVille(v)
+    appliquer()
+    etatSoleil.textContent = direSoleil()
+  }
+  const choix = ecran.querySelector<HTMLSelectElement>('#ville')!
+  choix.addEventListener('change', () => {
+    ecran.querySelector<HTMLElement>('#lieu-libre')!.hidden = choix.value !== 'autre'
+    if (choix.value !== 'autre') changerVille(VILLES.find(v => v.nom === choix.value) ?? null)
+  })
+  ecran.querySelector('#garder-lieu')!.addEventListener('click', () => {
+    const lat = Number(ecran.querySelector<HTMLInputElement>('#lat')!.value)
+    const lon = Number(ecran.querySelector<HTMLInputElement>('#lon')!.value)
+    if (!(Math.abs(lat) <= 90 && Math.abs(lon) <= 180)) return void (etatSoleil.textContent = 'La latitude va de −90 à 90, la longitude de −180 à 180.')
+    changerVille({ nom: LIEU_LIBRE, lat, lon })
+  })
   ecran.querySelectorAll<HTMLInputElement>('input[type=checkbox]').forEach(caseACocher =>
     caseACocher.addEventListener('change', async () => {
-      const s = caseACocher.dataset.s as Situation
+      const s = caseACocher.dataset.s as Reglable
       const r = await lireReglage(s)
       await ecrireReglage(s, { ...r, [caseACocher.dataset.k!]: caseACocher.checked })
     }),
@@ -325,10 +407,16 @@ navigator.serviceWorker?.addEventListener('message', e => {
   const { type, ecran: cible } = (e.data ?? {}) as { type?: string; ecran?: string }
   const affiche = location.hash.slice(1) || 'historique'
   if (type === 'aller' && cible) location.hash = cible
+  // Un appel arrive : le livreur passera dans la rue au prochain dessin de la scène.
+  if (type === 'maj' && cible === 'historique') livreurAttendu = true
   // L'historique montre aussi la scène du chantier : il suit les deux. Le forfait arrive avec n'importe quel push.
   if (type === 'maj' && (affiche === cible || affiche === 'historique' || affiche === 'forfait')) void afficher()
+  // Un mini-jeu ouvert sur un chantier qui vient de finir l'annonce.
+  if (type === 'maj' && cible === 'chantiers') void lireChantiers().then(liste => liste.forEach(c => estFini(c) && chantierFini(c.sessionId)))
 })
 // À l'ouverture, les appels et les chantiers trop vieux partent avant le premier affichage.
+// Le tout premier calcul des médailles, en silence : celles d'avant cette version ne s'annoncent pas.
+void decernerMedailles(true).catch(() => [])
 void nettoyer()
   .catch(() => undefined)
   .then(afficher)
@@ -339,8 +427,12 @@ void enregistrement()
   .then(notifs => notifs?.forEach(n => (n.data as { fini?: boolean } | null)?.fini && n.close()))
   .catch(() => undefined)
 
-// Les heures relatives (« il y a 3 min ») avancent tant que l'appli reste ouverte.
-setInterval(() => rafraichirHeures(ecran), 30_000)
+// Les heures relatives (« il y a 3 min ») avancent tant que l'appli reste ouverte, et le soleil avec elles.
+setInterval(() => {
+  rafraichirHeures(ecran)
+  appliquer()
+  placerAstres(ecran)
+}, 30_000)
 
 // Une nouvelle version publiée : à chaque retour sur l'appli, le navigateur cherche un nouveau service worker, et
 // quand celui-ci prend la main la page se recharge. Sans cela, l'appli reprise depuis l'arrière-plan gardait

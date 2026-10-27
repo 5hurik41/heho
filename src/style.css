@@ -1,14 +1,23 @@
-/* Direction B · Équipe de nuit (BRIEF.md) : les valeurs de la direction ne vivent qu'ici. */
+/* Direction B · Équipe de nuit (BRIEF.md). Les valeurs ci-dessous sont celles de la nuit : src/soleil.ts les remplace
+   à toute heure par celles du soleil (BRIEF.md, « Cycle du soleil ») ; la lampe et la balise ne changent jamais. */
 :root {
   --asphalte: #1B1C1E;
   --barre: #111214;
-  --nuit: #0B0C10;
   --carte: #26282B;
   --trait: #3A3C40;
   --craie: #EDEAE0;
   --craie-douce: #B9B6AC;
+  --case-vide: #2E3034;
+  /* Le jaune d'un texte posé sur le fond : la lampe la nuit, un ocre lisible quand l'interface est claire. */
+  --accent-texte: #F5C542;
+  --vitre: #1C1D21;
+  --ciel-haut: #07080C;
+  --ciel-bas: #15182A;
+  --etoiles: 1;
   --lampe: #F5C542;
   --balise: #FF7A2F;
+  /* La route : le sol de la scène et de la rue reste de l'asphalte à toute heure. */
+  --route: #1B1C1E;
   --rayon: 4px;
   --titre: 'Jersey 10', monospace;
   --texte: 'Atkinson Hyperlegible Next', system-ui, sans-serif;
@@ -30,9 +39,12 @@ body {
   font: 16px/1.45 var(--texte);
 }
 img { image-rendering: pixelated; }
-a { color: var(--lampe); }
+a { color: var(--accent-texte); }
 button { font: inherit; }
-:focus-visible { outline: 3px solid var(--lampe); outline-offset: 2px; }
+:focus-visible { outline: 3px solid var(--accent-texte); outline-offset: 2px; }
+html[data-mode='clair'] { color-scheme: light; }
+/* La bascule sombre ↔ clair : un fondu d'une seconde (src/soleil.ts, startViewTransition). */
+::view-transition-old(root), ::view-transition-new(root) { animation-duration: 1s; }
 
 .barre {
   display: flex;
@@ -73,7 +85,7 @@ p { margin: 0; }
   padding: 12px;
   border: 2px solid var(--trait);
   border-radius: var(--rayon);
-  background: var(--barre);
+  background: var(--asphalte);
   color: var(--craie);
   font: 13px/1.4 ui-monospace, monospace;
   word-break: break-all;
@@ -84,11 +96,11 @@ p { margin: 0; }
 .vignette { position: relative; width: 60px; height: 60px; flex-shrink: 0; display: grid; place-items: center; border-radius: var(--rayon); }
 .vignette img { width: 48px; height: 48px; }
 /* Le pictogramme du type, en coin de vignette : on reconnaît l'appel sans lire. */
-.picto { position: absolute; right: -6px; bottom: -6px; width: 24px; height: 24px; display: grid; place-items: center; background: var(--barre); border: 2px solid var(--trait); border-radius: var(--rayon); color: var(--craie-douce); }
+.picto { position: absolute; right: -6px; bottom: -6px; width: 24px; height: 24px; display: grid; place-items: center; background: var(--carte); border: 2px solid var(--trait); border-radius: var(--rayon); color: var(--craie-douce); }
 .picto svg { width: 16px; height: 16px; }
 /* Un appel qui attend ta réponse : une bande de rubalise en tête de carte, le pictogramme en jaune. */
 .ligne.attente { padding-top: 18px; background: repeating-linear-gradient(-45deg, var(--lampe) 0 8px, var(--barre) 8px 16px) top / 100% 6px no-repeat, var(--carte); }
-.ligne.attente .picto { color: var(--lampe); border-color: var(--lampe); }
+.ligne.attente .picto { color: var(--accent-texte); border-color: var(--lampe); }
 /* Une tâche de fond : une carte en pointillés, plus discrète. */
 .ligne.fond { border-style: dashed; background: var(--asphalte); }
 .ligne.fond .situation { color: var(--craie-douce); }
@@ -112,32 +124,36 @@ h3 { margin: 0; font-size: 17px; }
 .carte-aide p { color: var(--craie-douce); font-size: 15px; }
 .carte-aide strong { color: var(--craie); }
 
-/* ── Le quartier : sous un ciel de nuit, l'horizon des chantiers finis et, à droite, ceux en cours ── */
+/* ── Le quartier : sous le ciel de l'heure, l'horizon des chantiers finis et, à droite, ceux en cours ── */
 .scene {
   display: flex;
   flex-direction: column;
   gap: 8px;
   padding-bottom: 10px;
-  background: var(--barre);
+  background: var(--carte);
   border: 2px solid var(--trait);
   border-radius: var(--rayon);
   color: var(--craie);
   text-decoration: none;
   overflow: hidden;
 }
-.ciel { position: relative; height: 150px; background: var(--nuit); overflow: hidden; }
+.ciel { position: relative; height: 150px; background: linear-gradient(var(--ciel-haut), var(--ciel-bas)); overflow: hidden; }
 /* Le sol : la même bande d'asphalte à tirets jaunes que sous la barre. */
 .ciel::after {
   content: '';
   position: absolute;
   inset: auto 0 0;
   height: 8px;
-  background: repeating-linear-gradient(90deg, var(--lampe) 0 12px, transparent 12px 24px) 0 3px / 100% 2px no-repeat, var(--asphalte);
+  background: repeating-linear-gradient(90deg, var(--lampe) 0 12px, transparent 12px 24px) 0 3px / 100% 2px no-repeat, var(--route);
 }
-.ciel > i { position: absolute; width: 2px; height: 2px; background: var(--craie); animation: scintiller 4s steps(1) infinite; }
+.etoiles { position: absolute; inset: 0; opacity: var(--etoiles); }
+.etoiles > i { position: absolute; width: 2px; height: 2px; background: var(--craie); animation: scintiller 4s steps(1) infinite; }
 @keyframes scintiller { 0%, 70% { opacity: 1; } 80% { opacity: 0.2; } }
-/* Une lune en croissant, taillée en pixels. */
-.lune { position: absolute; top: 14px; right: 22px; width: 16px; height: 16px; border-radius: 50%; background: var(--craie); box-shadow: inset -6px -2px 0 0 var(--nuit); }
+/* Le soleil et la lune, à leur vraie place (placerAstres, src/chantier.ts). Le soleil : un disque de pixels aux coins
+   taillés, sans halo ; la lune : sa phase est une ombre intérieure à la couleur du ciel (--ombre). */
+.astre { position: absolute; width: 16px; height: 16px; translate: -50% 50%; }
+.soleil { background: #FFE07A; border: 2px solid #FFC93A; clip-path: polygon(25% 0, 75% 0, 100% 25%, 100% 75%, 75% 100%, 25% 100%, 0 75%, 0 25%); }
+.lune { border-radius: 50%; background: #EDEAE0; box-shadow: inset var(--ombre, 6px) 0 0 0 var(--ciel-haut); }
 
 /* La rue défile à l'horizontale, au doigt ; le ciel et le sol restent en place. */
 .horizon { position: absolute; inset: 0 0 8px; overflow-x: auto; overflow-y: hidden; overscroll-behavior-x: contain; scrollbar-width: thin; scrollbar-color: var(--trait) transparent; }
@@ -163,8 +179,7 @@ h3 { margin: 0; font-size: 17px; }
 .bat { position: relative; display: flex; flex-direction: column; flex-shrink: 0; padding-top: 3px; }
 .bat::after { content: ''; position: absolute; inset: 0 0 auto; height: 2px; background: var(--badge); }
 .etage { display: flex; justify-content: space-evenly; align-items: center; height: 9px; background: var(--fond); }
-.etage i { width: 4px; height: 5px; background: #1C1D21; }
-.etage i.allumee { background: var(--lampe); }
+.etage i { width: 4px; height: 5px; background: var(--vitre); }
 .etage i.scintille { animation: scintiller 5s steps(1) infinite; }
 .bat:not(.chantier-bat) > .etage:first-of-type, .chantier-bat > .etage:not(.vide):first-of-type { padding-top: 1px; }
 /* Les toits, tirés au sort par bâtiment. */
@@ -184,13 +199,13 @@ h3 { margin: 0; font-size: 17px; }
 .bat.envol { position: fixed; z-index: 50; margin: 0; pointer-events: none; transform-origin: center; }
 .legende { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 8px; padding: 0 12px; font-size: 13px; color: var(--craie-douce); overflow-wrap: anywhere; }
 .legende .sep { width: 1px; height: 12px; background: var(--trait); }
-.vers-chantiers { margin-left: auto; display: inline-flex; align-items: center; min-height: 44px; padding: 0 4px; color: var(--lampe); font-weight: 700; text-decoration: none; }
+.vers-chantiers { margin-left: auto; display: inline-flex; align-items: center; min-height: 44px; padding: 0 4px; color: var(--accent-texte); font-weight: 700; text-decoration: none; }
 
 
 /* ── Le mur du chef : une case par jour, comme le mur d'activité de GitHub ── */
 .mur-du-chef { display: flex; flex-direction: column; gap: 8px; padding: 12px; background: var(--carte); border: 2px solid var(--trait); border-radius: var(--rayon); }
 .grille-jours { display: grid; grid-auto-flow: column; grid-template-rows: repeat(7, 14px); grid-auto-columns: 14px; gap: 3px; }
-.case { border-radius: 2px; background: #2E3034; }
+.case { border-radius: 2px; background: var(--case-vide); }
 .case.n1 { background: #5C4A1A; }
 .case.n2 { background: #8F6D1F; }
 .case.n3 { background: #C9962B; }
@@ -202,17 +217,17 @@ h3 { margin: 0; font-size: 17px; }
 .resume { font-size: 13px; color: var(--craie-douce); }
 
 @media (prefers-reduced-motion: reduce) {
-  .ouvrier .image-2, .ciel > i, .defiler, .etage i.scintille, .etage.nouveau, .bat.neuf, .case.pulse { animation: none; }
+  .ouvrier .image-2, .etoiles > i, .defiler, .etage i.scintille, .etage.nouveau, .bat.neuf, .case.pulse { animation: none; }
 }
 
 /* ── Les chantiers ── */
 .chantier { display: flex; flex-direction: column; gap: 10px; padding: 12px; background: var(--carte); border: 2px solid var(--trait); border-radius: var(--rayon); }
-.jauge { height: 10px; background: var(--barre); border-radius: var(--rayon); overflow: hidden; }
+.jauge { height: 10px; background: var(--case-vide); border-radius: var(--rayon); overflow: hidden; }
 .jauge span { display: block; height: 100%; background: var(--lampe); }
 .etapes { margin: 0; padding: 0; list-style: none; display: flex; flex-direction: column; gap: 6px; font-size: 15px; }
 .etapes li { display: flex; align-items: baseline; gap: 10px; overflow-wrap: anywhere; }
 .etapes li.completed { color: var(--craie-douce); text-decoration: line-through; text-decoration-color: var(--trait); }
-.etapes li.in_progress { color: var(--lampe); font-weight: 700; }
+.etapes li.in_progress { color: var(--accent-texte); font-weight: 700; }
 .marque { width: 10px; height: 10px; flex-shrink: 0; border: 2px solid var(--trait); border-radius: 1px; transform: translateY(1px); }
 .completed .marque { background: var(--craie-douce); border-color: var(--craie-douce); }
 .in_progress .marque { background: var(--lampe); border-color: var(--lampe); }
@@ -277,7 +292,7 @@ h3 { margin: 0; font-size: 17px; }
 .fiche-tete .meta { margin-bottom: 6px; }
 .fiche-tete h2 { font-size: 26px; }
 .fiche-texte { font-size: 16px; white-space: pre-wrap; overflow-wrap: anywhere; }
-.fiche-faits { margin: 0; display: flex; flex-direction: column; gap: 4px; padding: 10px 12px; background: var(--barre); border-radius: var(--rayon); font-size: 14px; }
+.fiche-faits { margin: 0; display: flex; flex-direction: column; gap: 4px; padding: 10px 12px; background: var(--asphalte); border-radius: var(--rayon); font-size: 14px; }
 .fiche-faits div { display: flex; gap: 12px; }
 .fiche-faits dt { min-width: 72px; color: var(--craie-douce); font-weight: 700; }
 .fiche-faits dd { margin: 0; }
@@ -285,10 +300,10 @@ h3 { margin: 0; font-size: 17px; }
 /* Le forfait : un mur de 20 briques, rempli depuis le bas ; à l'orange passé 75 %. */
 .forfait { display: flex; flex-direction: column; gap: 10px; padding: 14px; background: var(--carte); border: 2px solid var(--trait); border-radius: var(--rayon); }
 .forfait-tete { display: flex; align-items: baseline; justify-content: space-between; }
-.pourcent { font: 44px/1 var(--titre); color: var(--lampe); }
-.mur-forfait { display: flex; flex-direction: column; gap: 3px; padding: 6px; background: var(--barre); border-radius: var(--rayon); }
+.pourcent { font: 44px/1 var(--titre); color: var(--accent-texte); }
+.mur-forfait { display: flex; flex-direction: column; gap: 3px; padding: 6px; background: var(--asphalte); border-radius: var(--rayon); }
 .rangee { display: grid; grid-template-columns: repeat(10, 1fr); gap: 3px; }
-.rangee i { height: 18px; border-radius: 1px; background: #2E3034; }
+.rangee i { height: 18px; border-radius: 1px; background: var(--case-vide); }
 .rangee i.pleine { background: var(--lampe); box-shadow: inset 0 -3px 0 #C9962B; }
 .alerte .rangee i.pleine { background: var(--balise); box-shadow: inset 0 -3px 0 #B8501A; }
 .alerte ~ .projection, .projection.depasse { color: var(--balise); }
@@ -317,8 +332,53 @@ h3 { margin: 0; font-size: 17px; }
   text-transform: uppercase;
 }
 .filtrer.actif { background: var(--lampe); border-color: var(--lampe); color: var(--barre); }
-.resume-filtres { display: flex; align-items: center; gap: 8px; margin-top: -6px; font-size: 13px; font-weight: 700; color: var(--lampe); }
+.resume-filtres { display: flex; align-items: center; gap: 8px; margin-top: -6px; font-size: 13px; font-weight: 700; color: var(--accent-texte); }
 .resume-filtres span { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .resume-filtres .effacer { margin: -10px -8px -10px 0; }
 .feuille-corps > h3 { margin-bottom: -6px; font-size: 13px; letter-spacing: .06em; text-transform: uppercase; color: var(--craie-douce); }
 .pied-feuille { display: grid; grid-template-columns: 1fr 1.4fr; gap: 10px; margin-top: 6px; }
+
+/* ── Bloc 3 : la ville du soleil (Réglages) ── */
+.reglage-ville { display: flex; flex-direction: column; gap: 8px; padding: 12px; background: var(--carte); border-radius: var(--rayon); }
+.reglage-ville select, .lieu-libre input {
+  min-height: 48px;
+  padding: 0 10px;
+  border: 2px solid var(--trait);
+  border-radius: var(--rayon);
+  background: var(--asphalte);
+  color: var(--craie);
+  font: inherit;
+}
+.lieu-libre { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; align-items: end; }
+.lieu-libre label { display: flex; flex-direction: column; gap: 4px; font-size: 13px; color: var(--craie-douce); }
+.lieu-libre .bouton { grid-column: 1 / -1; }
+
+/* ── Bloc 3 : la vie dans la rue (src/rue.ts) ── */
+.passant { position: absolute; z-index: 1; bottom: 6px; left: 0; width: 30px; height: 30px; pointer-events: none; animation: marcher 20s linear forwards; }
+.passant img { position: absolute; inset: 0; width: 100%; height: 100%; }
+.passant .image-2 { animation: alterner 0.5s steps(1) infinite; }
+.passant.vers-gauche { scale: -1 1; animation-name: marcher-gauche; }
+@keyframes marcher { from { translate: -40px 0; } to { translate: calc(100cqw + 40px) 0; } }
+@keyframes marcher-gauche { from { translate: calc(100cqw + 40px) 0; } to { translate: -40px 0; } }
+.ciel { container-type: inline-size; }
+/* La grue du premier chantier en cours, derrière son bâtiment. */
+.parcelle { position: relative; }
+.parcelle[role='button'] { cursor: pointer; }
+.grue { position: absolute; bottom: 0; left: -34px; z-index: -1; }
+.grue .fleche { transform-origin: 14px 6px; animation: pivoter 14s ease-in-out infinite; }
+.grue .crochet { transform-origin: 74px 6px; animation: balancer 3s ease-in-out infinite; }
+@keyframes pivoter { 0%, 100% { transform: scaleX(1); } 45%, 55% { transform: scaleX(.55); } }
+@keyframes balancer { 50% { transform: rotate(4deg); } }
+@media (prefers-reduced-motion: reduce) {
+  .grue .fleche, .grue .crochet, .passant .image-2 { animation: none; }
+}
+/* Le mini-jeu, dans la feuille du bas (src/jeu.ts). */
+canvas.jeu { align-self: center; height: min(440px, 58dvh); aspect-ratio: 300 / 440; border: 2px solid var(--trait); border-radius: var(--rayon); touch-action: manipulation; cursor: pointer; }
+
+/* ── Bloc 3 : la vitrine des médailles, sous le mur du chef ── */
+.vitrine { display: flex; flex-direction: column; gap: 8px; padding: 12px; background: var(--carte); border: 2px solid var(--trait); border-radius: var(--rayon); }
+.vitrine .medailles { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); gap: 4px; }
+.medaille { display: grid; place-items: center; aspect-ratio: 1; min-height: 44px; padding: 2px; border: 0; border-radius: var(--rayon); background: none; cursor: pointer; }
+.medaille svg { width: 100%; max-width: 40px; height: auto; }
+.medaille.fermee svg { opacity: .8; }
+.grande-medaille svg { width: 72px; height: 72px; }

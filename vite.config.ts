@@ -3,13 +3,13 @@ import { readdirSync } from 'node:fs'
 import { join, relative } from 'node:path'
 import { defineConfig, type Plugin } from 'vite'
 
-// Les fichiers de public/, sauf les grandes images des notifications : Chrome les télécharge lui-même à
+// Les fichiers de public/, sauf les grandes images des notifications et des médailles : Chrome les télécharge lui-même à
 // l'arrivée d'un push, qui suppose le réseau.
 const fichiersPublics = (dossier: string): string[] =>
   readdirSync(dossier, { withFileTypes: true, recursive: true })
     .filter(f => f.isFile())
     .map(f => relative(dossier, join(f.parentPath, f.name)).replace(/\\/g, '/'))
-    .filter(f => !f.startsWith('notifications/'))
+    .filter(f => !f.startsWith('notifications/') && !f.startsWith('medailles/'))
 
 // Écrit dans sw.js la liste des fichiers que l'appli garde pour s'ouvrir hors ligne, et une version tirée de
 // cette liste : un nouveau build change la version, le service worker remplace alors l'ancien cache.

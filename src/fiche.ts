@@ -1,6 +1,7 @@
 // Les fiches : toucher un appel ou un bâtiment ouvre sa fiche dans une feuille qui monte du bas (BRIEF.md,
 // « Fiches »). C'est un <dialog> : le bouton retour d'Android le ferme, comme un balayage vers le bas.
 import { CROIX, echapper } from './chantier'
+import { MEDAILLES, svgMedaille, type Medaille } from './medailles'
 import { LIBELLES, OUVRIER, TITRES, type Message } from './message'
 import { picto } from './pictos'
 import type { Batiment } from './stockage'
@@ -46,6 +47,29 @@ export const ficheBatiment = (b: Batiment): string => `
       ? `<ol class="etapes">${b.etapes.map(t => `<li class="completed"><span class="marque" aria-label="faite"></span>${echapper(t)}</li>`).join('')}</ol>`
       : `<p class="aide">Ses étapes ne sont pas connues : ce bâtiment a été repris du PC.</p>`
   }`
+
+// ── Les médailles : la vitrine sous le mur du chef, et la fiche de chacune ──
+
+export const vitrine = (obtenues: Map<string, number>): string => `
+  <section class="vitrine" aria-label="Médailles">
+    <h3>Médailles · ${obtenues.size}/${MEDAILLES.length}</h3>
+    <div class="medailles">
+      ${MEDAILLES.map(
+        m => `<button class="medaille${obtenues.has(m.id) ? '' : ' fermee'}" type="button" data-medaille="${m.id}" aria-haspopup="dialog" aria-label="${echapper(m.titre)}${obtenues.has(m.id) ? '' : ', pas encore gagnée'}">${svgMedaille(m, obtenues.has(m.id))}</button>`,
+      ).join('')}
+    </div>
+  </section>`
+
+export const ficheMedaille = (m: Medaille, date: number | undefined): string => `
+  <div class="fiche-tete">
+    <div class="grande-medaille">${svgMedaille(m, date !== undefined)}</div>
+    <div>
+      <p class="meta"><span class="situation">${date !== undefined ? 'Gagnée' : 'Pas encore'}</span></p>
+      <h2 id="feuille-titre">${echapper(m.titre)}</h2>
+    </div>
+  </div>
+  <p class="fiche-texte">${echapper(m.texte)}.</p>
+  ${date !== undefined ? `<dl class="fiche-faits"><div><dt>Gagnée</dt><dd><time datetime="${new Date(date).toISOString()}">${exacte(date)}</time></dd></div></dl>` : ''}`
 
 let feuille: HTMLDialogElement | null = null
 

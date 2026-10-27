@@ -1,7 +1,19 @@
 /// <reference lib="webworker" />
 // Le service worker : reçoit le push, montre la notification, garde le message dans l'historique.
 import { enCours, estFini, faites, image, lireForfait, lireMessage, lireProgression, lireSauvegarde, titre, type Message, type Progression } from './message'
-import { ajouterBatiments, ajouterMessage, ecrireForfait, fusionnerActivite, lireHistorique, lireReglage, nettoyer, recevoirProgression, retirerBatiments } from './stockage'
+import type { Medaille } from './medailles'
+import {
+  ajouterBatiments,
+  ajouterMessage,
+  decernerMedailles,
+  ecrireForfait,
+  fusionnerActivite,
+  lireHistorique,
+  lireReglage,
+  nettoyer,
+  recevoirProgression,
+  retirerBatiments,
+} from './stockage'
 
 declare const self: ServiceWorkerGlobalScope
 
@@ -74,6 +86,22 @@ const montrer = async (m: Message): Promise<void> => {
   await self.registration.showNotification(titre(m), options)
 }
 
+// Une médaille gagnée : sa propre notification, avec sa grande image (public/medailles/), son et vibration selon Réglages.
+const montrerMedaille = async (m: Medaille): Promise<void> => {
+  const reglage = await lireReglage('medaille')
+  const options: Options = {
+    body: m.texte,
+    tag: `medaille-${m.id}`,
+    icon: './icones/icone-192.png',
+    image: `./medailles/${m.id}.png`,
+    badge: './icones/badge-96.png',
+    silent: !reglage.son,
+    vibrate: reglage.vibration ? [120, 60, 120, 60, 240] : [],
+    data: { ecran: 'historique', medaille: m.id },
+  }
+  await self.registration.showNotification(`HÉHO · Médaille : ${m.titre}`, options)
+}
+
 // La progression d'un chantier : une notification silencieuse par session, mise à jour sur place
 // (Chrome exige une notification à chaque push).
 const montrerProgression = async (p: Progression): Promise<void> => {
@@ -118,6 +146,8 @@ self.addEventListener('push', e => {
         await fusionnerActivite(s.jours.map(([jour, briques, murs]) => ({ jour, briques, murs })))
         await ajouterBatiments(s.batiments)
         const retires = s.retirer ? await retirerBatiments(s.retirer) : 0
+        // Le passé repris du PC décerne ses médailles sans les annoncer.
+        await decernerMedailles(true).catch(() => [])
         const corps = [
           s.jours.length || s.batiments.length ? `${s.jours.length} jour${s.jours.length > 1 ? 's' : ''} et ${s.batiments.length} bâtiment${s.batiments.length > 1 ? 's' : ''} repris du PC.` : '',
           retires ? `${retires} bâtiment${retires > 1 ? 's' : ''} retiré${retires > 1 ? 's' : ''} du quartier.` : '',
@@ -144,6 +174,7 @@ self.addEventListener('push', e => {
         await nettoyer().catch(() => undefined)
         await effacerLesTermines(`chantier-${p.sessionId}`)
         await montrerProgression(p)
+        for (const m of await decernerMedailles().catch(() => [])) await montrerMedaille(m)
         await prevenirLesFenetres('chantiers')
       })(),
     )
