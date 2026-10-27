@@ -7,3 +7,7 @@ docs/
 # Rien de secret dans le dépôt : la clé privée VAPID et l'abonnement restent sur le PC.
 *.pem
 abonnement*.json
+# Le projet Android (Trusted Web Activity) se régénère avec android/generer.mjs ; sa clé reste dans ~/.claude/heho/.
+android/
+# Réglages locaux de l'outil de relecture du design.
+.impeccable/
