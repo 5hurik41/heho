@@ -41,6 +41,17 @@ export const LIBELLES: Record<Situation, string> = {
 
 export const titre = (m: Message): string => `${m.session} · ${TITRES[m.situation]}`
 
+// Les 10 couleurs de badge : la liste AUTO de session-badge, à laquelle notify-worker ramène toute autre
+// couleur. scripts/generer-icones.mts fait une grande image par situation et par couleur.
+export const BADGES = ['cba6f7', 'a6e3a1', 'fab387', '89b4fa', 'f5c2e7', '94e2d5', 'f9e2af', 'f38ba8', '74c7ec', 'b4befe']
+
+// La grande image de la notification, ou rien pour une couleur sans image.
+export const image = (m: Message): string | undefined => {
+  const badge = m.couleur.slice(1).toLowerCase()
+
+  return BADGES.includes(badge) ? `./notifications/${m.situation}-${badge}.png` : undefined
+}
+
 const chaine = (x: unknown): x is string => typeof x === 'string' && x.length > 0 && x.length < 2000
 const nombre = (x: unknown): x is number => typeof x === 'number' && Number.isFinite(x)
 

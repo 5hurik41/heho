@@ -1,6 +1,6 @@
 /// <reference lib="webworker" />
 // Le service worker : reçoit le push, montre la notification, garde le message dans l'historique.
-import { lireMessage, titre, type Message } from './message'
+import { image, lireMessage, titre, type Message } from './message'
 import { ajouterMessage, lireReglage } from './stockage'
 
 declare const self: ServiceWorkerGlobalScope
@@ -19,6 +19,7 @@ const montrer = async (m: Message): Promise<void> => {
     tag: m.sessionId,
     renotify: true,
     icon: './icones/icone-192.png',
+    image: image(m),
     badge: './icones/badge-96.png',
     timestamp: m.date,
     silent: !reglage.son,

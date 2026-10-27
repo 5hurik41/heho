@@ -5,6 +5,7 @@ import { mkdirSync, writeFileSync } from 'node:fs'
 import { pathToFileURL } from 'node:url'
 import { homedir } from 'node:os'
 import { join } from 'node:path'
+import { BADGES } from '../src/message.ts'
 
 const SPRITES = process.argv[2] ?? join(homedir(), '.claude', 'mods-perso', 'task-steps', 'hooks', 'sprites.ts')
 const PUBLIC = new URL('../public/', import.meta.url)
@@ -88,27 +89,37 @@ const bloc = (type: string, d: Buffer): Buffer => {
   return Buffer.concat([l, td, c])
 }
 
-// Une image carrée de `taille` px : un fond (ou rien), la grille agrandie `echelle` fois, centrée.
-const png = (taille: number, g: Grille, echelle: number, fond: string | null, teinte?: string): Buffer => {
-  const rgba = Buffer.alloc(taille * taille * 4)
-  const poser = (x: number, y: number, c: string) => {
-    const i = (y * taille + x) * 4
-    rgba.writeUInt32BE(((parseInt(c.slice(1), 16) << 8) | 0xff) >>> 0, i)
+type Poser = (x: number, y: number, c: string) => void
+
+// Une image de `largeur` × `hauteur` px : un fond (ou rien), un décor, puis la grille agrandie `echelle` fois,
+// centrée en largeur et, sauf `bas` (la ligne de ses pieds), en hauteur.
+const png = (
+  [largeur, hauteur]: [number, number],
+  g: Grille,
+  echelle: number,
+  fond: string | null,
+  { teinte, decor, bas }: { teinte?: string; decor?: (poser: Poser) => void; bas?: number } = {},
+): Buffer => {
+  const rgba = Buffer.alloc(largeur * hauteur * 4)
+  const poser: Poser = (x, y, c) => {
+    if (x < 0 || y < 0 || x >= largeur || y >= hauteur) return
+    rgba.writeUInt32BE(((parseInt(c.slice(1), 16) << 8) | 0xff) >>> 0, (y * largeur + x) * 4)
   }
-  if (fond) for (let y = 0; y < taille; y++) for (let x = 0; x < taille; x++) poser(x, y, fond)
-  const ox = Math.floor((taille - g[0]!.length * echelle) / 2)
-  const oy = Math.floor((taille - g.length * echelle) / 2)
+  if (fond) for (let y = 0; y < hauteur; y++) for (let x = 0; x < largeur; x++) poser(x, y, fond)
+  decor?.(poser)
+  const ox = Math.floor((largeur - g[0]!.length * echelle) / 2)
+  const oy = bas === undefined ? Math.floor((hauteur - g.length * echelle) / 2) : bas - g.length * echelle
   g.forEach((l, gy) =>
     l.forEach((c, gx) => {
       if (!c) return
       for (let dy = 0; dy < echelle; dy++) for (let dx = 0; dx < echelle; dx++) poser(ox + gx * echelle + dx, oy + gy * echelle + dy, teinte ?? c)
     }),
   )
-  const brut = Buffer.alloc((taille * 4 + 1) * taille)
-  for (let y = 0; y < taille; y++) rgba.copy(brut, y * (taille * 4 + 1) + 1, y * taille * 4, (y + 1) * taille * 4)
+  const brut = Buffer.alloc((largeur * 4 + 1) * hauteur)
+  for (let y = 0; y < hauteur; y++) rgba.copy(brut, y * (largeur * 4 + 1) + 1, y * largeur * 4, (y + 1) * largeur * 4)
   const ihdr = Buffer.alloc(13)
-  ihdr.writeUInt32BE(taille, 0)
-  ihdr.writeUInt32BE(taille, 4)
+  ihdr.writeUInt32BE(largeur, 0)
+  ihdr.writeUInt32BE(hauteur, 4)
   ihdr.set([8, 6, 0, 0, 0], 8)
 
   return Buffer.concat([
@@ -121,15 +132,15 @@ const png = (taille: number, g: Grille, echelle: number, fond: string | null, te
 
 const L = logo()
 // La petite icône de la barre d'état : Android n'en garde que la silhouette, le casque seul suffit.
-const CASQUE_SEUL = L.slice(12)
+const CASQUE_SEUL = L.slice(12).map(l => l.slice(0, 16))
 
 writeFileSync(new URL('logo.svg', PUBLIC), svg(L))
-writeFileSync(new URL('icones/icone-192.png', PUBLIC), png(192, L, 5, ASPHALTE))
-writeFileSync(new URL('icones/icone-512.png', PUBLIC), png(512, L, 13, ASPHALTE))
+writeFileSync(new URL('icones/icone-192.png', PUBLIC), png([192, 192], L, 5, ASPHALTE))
+writeFileSync(new URL('icones/icone-512.png', PUBLIC), png([512, 512], L, 13, ASPHALTE))
 // Maskable : le dessin reste dans le cercle sûr de 80 %.
-writeFileSync(new URL('icones/icone-maskable-512.png', PUBLIC), png(512, L, 10, ASPHALTE))
-writeFileSync(new URL('icones/favicon-32.png', PUBLIC), png(32, L, 1, null))
-writeFileSync(new URL('icones/badge-96.png', PUBLIC), png(96, CASQUE_SEUL, 5, null, '#FFFFFF'))
+writeFileSync(new URL('icones/icone-maskable-512.png', PUBLIC), png([512, 512], L, 10, ASPHALTE))
+writeFileSync(new URL('icones/favicon-32.png', PUBLIC), png([32, 32], L, 1, null))
+writeFileSync(new URL('icones/badge-96.png', PUBLIC), png([96, 96], CASQUE_SEUL, 5, null, { teinte: '#FFFFFF' }))
 
 // ── Les ouvriers, un par situation, tirés des sprites de task-steps ──
 
@@ -138,7 +149,27 @@ const { pixels, hex } = (await import(pathToFileURL(SPRITES).href)) as {
   hex: (rgb: number) => string
 }
 const ROLES = { question: 'thinker', permission: 'foreman', done: 'resting', recap: 'painter', budget: 'mechanic' }
-for (const [situation, role] of Object.entries(ROLES))
-  writeFileSync(new URL(`ouvriers/${situation}.svg`, PUBLIC), svg(pixels(role, 1).map(l => l.map(c => (c === null ? null : hex(c))))))
+const ouvrier = (role: string): Grille => pixels(role, 1).map(l => l.map(c => (c === null ? null : hex(c))))
+for (const [situation, role] of Object.entries(ROLES)) writeFileSync(new URL(`ouvriers/${situation}.svg`, PUBLIC), svg(ouvrier(role)))
 
-console.log('Logo, 5 icônes et 5 ouvriers écrits dans public/')
+// ── Les grandes images des notifications : l'ouvrier sur la couleur du badge, debout sur le marquage au sol ──
+
+const IMAGE: [number, number] = [512, 256]
+const SOL = 36
+
+// Une bande d'asphalte en bas, coupée de tirets jaunes, comme sous la barre de l'appli.
+const marquage: (poser: Poser) => void = poser => {
+  const [l, h] = IMAGE
+  for (let y = h - SOL; y < h; y++) for (let x = 0; x < l; x++) poser(x, y, ASPHALTE)
+  for (let y = h - SOL / 2 - 3; y < h - SOL / 2 + 3; y++) for (let x = 0; x < l; x++) if (x % 48 < 24) poser(x, y, T.Y)
+}
+
+mkdirSync(new URL('notifications/', PUBLIC), { recursive: true })
+for (const [situation, role] of Object.entries(ROLES))
+  for (const badge of BADGES)
+    writeFileSync(
+      new URL(`notifications/${situation}-${badge}.png`, PUBLIC),
+      png(IMAGE, ouvrier(role), 16, `#${badge}`, { decor: marquage, bas: IMAGE[1] - SOL + 4 }),
+    )
+
+console.log(`Logo, 5 icônes, 5 ouvriers et ${5 * BADGES.length} images de notification écrits dans public/`)
