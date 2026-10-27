@@ -7,7 +7,7 @@ import { animerScene, carte, CROIX, echapper, horodatage, murDuChef, rafraichirH
 import { CLE_PUBLIQUE_VAPID } from './config'
 import { ATTENTES, LIBELLES, OUVRIER, REGLABLES, TITRES, type Message, type Situation } from './message'
 import { picto } from './pictos'
-import { ecrireReglage, effacerChantier, effacerMessage, lireActivite, lireChantiers, lireHistorique, lireQuartier, lireReglage, viderHistorique } from './stockage'
+import { ecrireReglage, effacerChantier, effacerMessage, lireActivite, lireChantiers, lireHistorique, lireQuartier, lireReglage, nettoyer, viderHistorique } from './stockage'
 
 const ecran = document.querySelector<HTMLElement>('#ecran')!
 const nav = document.querySelector<HTMLElement>('#nav')!
@@ -220,7 +220,10 @@ navigator.serviceWorker?.addEventListener('message', e => {
   // L'historique montre aussi la scène du chantier : il suit les deux.
   if (type === 'maj' && (affiche === cible || affiche === 'historique')) void afficher()
 })
-void afficher()
+// À l'ouverture, les appels et les chantiers trop vieux partent avant le premier affichage.
+void nettoyer()
+  .catch(() => undefined)
+  .then(afficher)
 
 // À l'ouverture, les notifications « Terminé » des chantiers s'effacent : le mur du chef en garde la trace.
 void enregistrement()

@@ -1,7 +1,7 @@
 /// <reference lib="webworker" />
 // Le service worker : reçoit le push, montre la notification, garde le message dans l'historique.
 import { enCours, estFini, faites, image, lireMessage, lireProgression, lireSauvegarde, titre, type Message, type Progression } from './message'
-import { ajouterActivite, ajouterBatiments, ajouterMessage, ecrireChantier, fusionnerActivite, jourDe, lireChantier, lireHistorique, lireReglage, retirerBatiments } from './stockage'
+import { ajouterBatiments, ajouterMessage, fusionnerActivite, lireHistorique, lireReglage, nettoyer, recevoirProgression, retirerBatiments } from './stockage'
 
 declare const self: ServiceWorkerGlobalScope
 
@@ -91,20 +91,6 @@ const montrerProgression = async (p: Progression): Promise<void> => {
   await self.registration.showNotification(`${p.session} · ${p.titre ?? 'Chantier en cours'}`, options)
 }
 
-// Les briques que cette progression ajoute au mur d'activité : les étapes faites depuis la précédente du même
-// plan (un autre titre est un nouveau plan), et un mur de plus s'il vient d'être fini.
-const recevoirProgression = async (p: Progression): Promise<void> => {
-  const avant = await lireChantier(p.sessionId)
-  const memePlan = avant !== undefined && avant.titre === p.titre
-  const briques = Math.max(0, faites(p) - (memePlan ? faites(avant) : 0))
-  const vientDeFinir = estFini(p) && !(memePlan && estFini(avant))
-  await ecrireChantier({ ...p, finiA: vientDeFinir ? p.date : memePlan ? avant.finiA : undefined })
-  if (briques || vientDeFinir) await ajouterActivite(jourDe(p.date), briques, vientDeFinir ? 1 : 0)
-  // Un mur fini devient un bâtiment du quartier, d'autant d'étages que d'étapes.
-  if (vientDeFinir)
-    await ajouterBatiments([{ id: `${p.sessionId}:${p.date}`, session: p.session, couleur: p.couleur, titre: p.titre, etages: p.etapes.length, date: p.date }])
-}
-
 const effacerLesTermines = async (sauf?: string): Promise<void> => {
   for (const n of await self.registration.getNotifications())
     if ((n.data as { fini?: boolean } | null)?.fini && n.tag !== sauf) n.close()
@@ -151,6 +137,7 @@ self.addEventListener('push', e => {
     e.waitUntil(
       (async () => {
         await recevoirProgression(p)
+        await nettoyer().catch(() => undefined)
         await effacerLesTermines(`chantier-${p.sessionId}`)
         await montrerProgression(p)
         await prevenirLesFenetres('chantiers')
@@ -168,6 +155,7 @@ self.addEventListener('push', e => {
       // la notification de fin : on remontre celle-ci, sans bruit (Chrome veut une notification par push).
       const fin = m.situation === 'fond' && m.tache ? (await lireHistorique()).find(x => x.tache === m.tache && x.situation === 'fond-fini') : undefined
       await ajouterMessage(m)
+      await nettoyer().catch(() => undefined)
       if (fin) await self.registration.showNotification(titre(fin), { body: fin.texte, tag: `fond-${m.tache}`, silent: true, icon: './icones/icone-192.png', badge: './icones/badge-96.png' })
       else await montrer(m)
       await prevenirLesFenetres('historique')

@@ -1,5 +1,5 @@
 // L'historique, les chantiers et les réglages, dans IndexedDB : le service worker écrit, l'appli lit, hors ligne compris.
-import type { Message, Progression, Situation } from './message'
+import { estFini, faites, type Message, type Progression, type Situation } from './message'
 
 const BASE = 'heho'
 const HISTORIQUE = 'historique'
@@ -13,6 +13,11 @@ const QUARTIER = 'quartier'
 const BATIMENTS_MAX = 60
 // Au-delà, les plus anciens messages sont effacés.
 const GARDER = 200
+// Le nettoyage (BRIEF.md, « La suite », bloc 1) : un appel quitte l'historique après 30 jours ; un chantier, fini ou
+// abandonné, quitte l'écran Chantiers 7 jours après sa dernière progression. Le mur du chef et le quartier restent.
+const JOUR_MS = 24 * 3600_000
+const HISTORIQUE_MS = 30 * JOUR_MS
+const CHANTIER_MS = 7 * JOUR_MS
 
 export type Reglage = { son: boolean; vibration: boolean }
 // Un chantier tel que le téléphone le garde : la progression reçue, et l'heure où il a été vu terminé.
@@ -152,6 +157,35 @@ export const lireReglage = async (s: Situation): Promise<Reglage> => {
 export const ecrireReglage = async (s: Situation, r: Reglage): Promise<void> => {
   const db = await ouvrir()
   await attendre(db.transaction(REGLAGES, 'readwrite').objectStore(REGLAGES).put(r, s))
+}
+
+// Les briques que cette progression ajoute au mur d'activité : les étapes faites depuis la précédente du même
+// plan (un autre titre est un nouveau plan), et un mur de plus s'il vient d'être fini. Le mod notify-worker tient
+// le même compte (`compter`), avec les mêmes règles.
+export const recevoirProgression = async (p: Progression): Promise<void> => {
+  const avant = await lireChantier(p.sessionId)
+  const memePlan = avant !== undefined && avant.titre === p.titre
+  const briques = Math.max(0, faites(p) - (memePlan ? faites(avant) : 0))
+  const vientDeFinir = estFini(p) && !(memePlan && estFini(avant))
+  await ecrireChantier({ ...p, finiA: vientDeFinir ? p.date : memePlan ? avant.finiA : undefined })
+  if (briques || vientDeFinir) await ajouterActivite(jourDe(p.date), briques, vientDeFinir ? 1 : 0)
+  // Un mur fini devient un bâtiment du quartier, d'autant d'étages que d'étapes.
+  if (vientDeFinir)
+    await ajouterBatiments([{ id: `${p.sessionId}:${p.date}`, session: p.session, couleur: p.couleur, titre: p.titre, etages: p.etapes.length, date: p.date }])
+}
+
+// Efface les appels et les chantiers trop vieux ; à chaque push reçu et à chaque ouverture de l'appli.
+export const nettoyer = async (maintenant = Date.now()): Promise<void> => {
+  const db = await ouvrir()
+  const t = db.transaction([HISTORIQUE, CHANTIERS], 'readwrite')
+  const appels = t.objectStore(HISTORIQUE)
+  for (const cle of await attendre(appels.index('date').getAllKeys(IDBKeyRange.upperBound(maintenant - HISTORIQUE_MS, true)))) appels.delete(cle)
+  const chantiers = t.objectStore(CHANTIERS)
+  for (const c of (await attendre(chantiers.getAll())) as Chantier[]) if (c.date < maintenant - CHANTIER_MS) chantiers.delete(c.sessionId)
+  await new Promise<void>((resoudre, rejeter) => {
+    t.oncomplete = () => resoudre()
+    t.onerror = () => rejeter(t.error)
+  })
 }
 
 // Retire du quartier les bâtiments dont l'id commence par l'un de ces préfixes ; renvoie combien sont partis.
