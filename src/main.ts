@@ -6,7 +6,7 @@ import './style.css'
 import { animerScene, carte, CROIX, echapper, murDuChef, scene } from './chantier'
 import { CLE_PUBLIQUE_VAPID } from './config'
 import { LIBELLES, SITUATIONS, TITRES, type Message, type Situation } from './message'
-import { ecrireReglage, effacerChantier, effacerMessage, lireActivite, lireChantiers, lireHistorique, lireReglage, viderHistorique } from './stockage'
+import { ecrireReglage, effacerChantier, effacerMessage, lireActivite, lireChantiers, lireHistorique, lireQuartier, lireReglage, viderHistorique } from './stockage'
 
 const ecran = document.querySelector<HTMLElement>('#ecran')!
 const nav = document.querySelector<HTMLElement>('#nav')!
@@ -98,9 +98,9 @@ const ligne = (m: Message): string => `
   </article>`
 
 const historique = async (): Promise<void> => {
-  const [messages, chantiers, activite] = await Promise.all([lireHistorique(), lireChantiers(), lireActivite()])
+  const [messages, chantiers, activite, quartier] = await Promise.all([lireHistorique(), lireChantiers(), lireActivite(), lireQuartier()])
   ecran.innerHTML = `
-    ${scene(chantiers)}
+    ${scene(chantiers, quartier)}
     ${murDuChef(activite)}
     ${
       messages.length
@@ -127,7 +127,7 @@ const historique = async (): Promise<void> => {
     await viderHistorique()
     await historique()
   })
-  void animerScene(ecran)
+  void animerScene(ecran, quartier)
 }
 
 // ── Chantiers ────────────────────────────────────────────────────────────

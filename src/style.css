@@ -2,12 +2,12 @@
 :root {
   --asphalte: #1B1C1E;
   --barre: #111214;
+  --nuit: #0B0C10;
   --carte: #26282B;
   --trait: #3A3C40;
   --craie: #EDEAE0;
   --craie-douce: #B9B6AC;
   --lampe: #F5C542;
-  --lampe-ombre: #B8862A;
   --balise: #FF7A2F;
   --rayon: 4px;
   --titre: 'Jersey 10', monospace;
@@ -103,12 +103,12 @@ h3 { margin: 0; font-size: 17px; }
 .carte-aide p { color: var(--craie-douce); font-size: 15px; }
 .carte-aide strong { color: var(--craie); }
 
-/* ── La scène de chantier : un poste par session, ses ouvriers devant son mur, qui monte avec les étapes ── */
+/* ── Le quartier : sous un ciel de nuit, l'horizon des chantiers finis et, à droite, ceux en cours ── */
 .scene {
   display: flex;
   flex-direction: column;
   gap: 8px;
-  padding: 14px 14px 0;
+  padding-bottom: 10px;
   background: var(--barre);
   border: 2px solid var(--trait);
   border-radius: var(--rayon);
@@ -116,38 +116,56 @@ h3 { margin: 0; font-size: 17px; }
   text-decoration: none;
   overflow: hidden;
 }
+.ciel { position: relative; height: 150px; background: var(--nuit); overflow: hidden; }
 /* Le sol : la même bande d'asphalte à tirets jaunes que sous la barre. */
-.scene::after {
+.ciel::after {
   content: '';
+  position: absolute;
+  inset: auto 0 0;
   height: 8px;
-  margin: 0 -14px;
-  background: repeating-linear-gradient(90deg, var(--lampe) 0 12px, transparent 12px 24px), var(--asphalte);
+  background: repeating-linear-gradient(90deg, var(--lampe) 0 12px, transparent 12px 24px) 0 3px / 100% 2px no-repeat, var(--asphalte);
 }
-.postes { display: flex; gap: 14px; }
-.poste { flex: 1 1 0; min-width: 0; display: flex; flex-direction: column; gap: 8px; }
-.ouvrage { display: flex; align-items: end; justify-content: space-between; gap: 8px; }
-.equipe { display: flex; align-items: end; gap: 4px; }
-.ouvrier { position: relative; width: 56px; height: 56px; flex-shrink: 0; }
-.scene.plusieurs .ouvrier { width: 40px; height: 40px; }
+.ciel > i { position: absolute; width: 2px; height: 2px; background: var(--craie); animation: scintiller 4s steps(1) infinite; }
+@keyframes scintiller { 0%, 70% { opacity: 1; } 80% { opacity: 0.2; } }
+/* Une lune en croissant, taillée en pixels. */
+.lune { position: absolute; top: 14px; right: 22px; width: 16px; height: 16px; border-radius: 50%; background: var(--craie); box-shadow: inset -6px -2px 0 0 var(--nuit); }
+
+.horizon { position: absolute; inset: 0 0 8px; display: flex; align-items: flex-end; gap: 3px; padding: 0 10px; }
+.chantiers { margin-left: auto; display: flex; align-items: flex-end; gap: 8px; }
+.parcelle { display: flex; align-items: flex-end; gap: 2px; }
+.equipe { display: flex; align-items: end; }
+.ouvrier { position: relative; width: 40px; height: 40px; flex-shrink: 0; }
 .ouvrier img { position: absolute; inset: 0; width: 100%; height: 100%; }
 /* Deux images qui alternent : l'outil se lève et retombe. */
 .ouvrier .image-2 { animation: alterner 0.9s steps(1) infinite; }
 @keyframes alterner { 0% { opacity: 0; } 50% { opacity: 1; } }
 
-/* Le fanion à la couleur du badge, planté sur le mur. */
-.pile { position: relative; padding-top: 16px; }
-.fanion { position: absolute; top: 0; right: 2px; width: 14px; height: 9px; box-shadow: inset 2px 0 0 var(--craie); clip-path: polygon(0 0, 100% 50%, 0 100%); }
-.mur { display: grid; grid-template-columns: repeat(7, 14px); gap: 2px; padding-bottom: 2px; }
-.scene.plusieurs .mur { grid-template-columns: repeat(7, 9px); }
-.brique { height: 8px; border-radius: 1px; background: transparent; outline: 1px dashed var(--trait); outline-offset: -1px; }
-.brique.posee { background: var(--balise); outline: none; box-shadow: inset 0 -2px 0 #B8501C; }
-/* Une brique posée depuis la dernière visite tombe à sa place. */
-.brique.nouvelle { animation: tomber 0.45s cubic-bezier(.16,1,.3,1) both; }
-@keyframes tomber { from { transform: translateY(-28px); opacity: 0; } to { transform: none; opacity: 1; } }
-/* Un mur fini prend la couleur de la lampe : il est prêt à rejoindre le mur du chef. */
-.poste.fini .brique.posee { background: var(--lampe); box-shadow: inset 0 -2px 0 var(--lampe-ombre); }
-.mur.envol { position: fixed; z-index: 50; margin: 0; pointer-events: none; transform-origin: center; }
-.legende { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 8px; font-size: 13px; color: var(--craie-douce); overflow-wrap: anywhere; }
+/* Un bâtiment : ses étages de haut en bas, une rangée de fenêtres chacun, un liseré à la couleur du badge sur le toit. */
+.bat { position: relative; display: flex; flex-direction: column; flex-shrink: 0; padding-top: 3px; }
+.bat::after { content: ''; position: absolute; inset: 0 0 auto; height: 2px; background: var(--badge); }
+.etage { display: flex; justify-content: space-evenly; align-items: center; height: 9px; background: var(--fond); }
+.etage i { width: 4px; height: 5px; background: #1C1D21; }
+.etage i.allumee { background: var(--lampe); }
+.etage i.scintille { animation: scintiller 5s steps(1) infinite; }
+.bat:not(.chantier-bat) > .etage:first-of-type, .chantier-bat > .etage:not(.vide):first-of-type { padding-top: 1px; }
+/* Les toits, tirés au sort par bâtiment. */
+.toit-antenne::before { content: ''; position: absolute; bottom: 100%; left: 50%; width: 2px; height: 10px; background: #8C8F96; }
+.toit-citerne::before { content: ''; position: absolute; bottom: 100%; left: 4px; width: 10px; height: 7px; background: #5E4B38; }
+.toit-pignon::before { content: ''; position: absolute; bottom: 100%; left: 0; right: 0; height: 7px; background: var(--fond); clip-path: polygon(0 100%, 50% 0, 100% 100%); }
+/* Un chantier en cours : les étages à faire ne sont qu'un échafaudage. */
+.chantier-bat { padding-top: 0; }
+.chantier-bat::after { display: none; }
+.etage.vide { background: repeating-linear-gradient(45deg, transparent 0 4px, #4A4D54 4px 5px); box-shadow: inset 1px 0 0 #6A6D74, inset -1px 0 0 #6A6D74; }
+.fanion { position: absolute; bottom: 100%; right: 0; width: 14px; height: 9px; margin-bottom: 1px; box-shadow: inset 2px 0 0 var(--craie); clip-path: polygon(0 0, 100% 50%, 0 100%); }
+/* Un nouvel étage monte en place ; un nouveau bâtiment s'élève depuis le sol. */
+.etage.nouveau { animation: monter 0.5s cubic-bezier(.16,1,.3,1) both; }
+@keyframes monter { from { transform: translateY(8px); opacity: 0; } to { transform: none; opacity: 1; } }
+.bat.neuf { transform-origin: bottom; animation: elever 1s cubic-bezier(.16,1,.3,1) both; }
+@keyframes elever { from { transform: scaleY(0); } to { transform: none; } }
+.bat.envol { position: fixed; z-index: 50; margin: 0; pointer-events: none; transform-origin: center; }
+.legende { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 8px; padding: 0 12px; font-size: 13px; color: var(--craie-douce); overflow-wrap: anywhere; }
+.legende .sep { width: 1px; height: 12px; background: var(--trait); }
+
 
 /* ── Le mur du chef : une case par jour, comme le mur d'activité de GitHub ── */
 .mur-du-chef { display: flex; flex-direction: column; gap: 8px; padding: 12px; background: var(--carte); border: 2px solid var(--trait); border-radius: var(--rayon); }
@@ -164,7 +182,7 @@ h3 { margin: 0; font-size: 17px; }
 .resume { font-size: 13px; color: var(--craie-douce); }
 
 @media (prefers-reduced-motion: reduce) {
-  .ouvrier .image-2, .brique.nouvelle, .case.pulse { animation: none; }
+  .ouvrier .image-2, .ciel > i, .etage i.scintille, .etage.nouveau, .bat.neuf, .case.pulse { animation: none; }
 }
 
 /* ── Les chantiers ── */

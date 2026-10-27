@@ -1,7 +1,7 @@
 /// <reference lib="webworker" />
 // Le service worker : reçoit le push, montre la notification, garde le message dans l'historique.
 import { enCours, estFini, faites, image, lireMessage, lireProgression, titre, type Message, type Progression } from './message'
-import { ajouterActivite, ajouterMessage, ecrireChantier, jourDe, lireChantier, lireReglage } from './stockage'
+import { ajouterActivite, ajouterBatiments, ajouterMessage, ecrireChantier, jourDe, lireChantier, lireReglage } from './stockage'
 
 declare const self: ServiceWorkerGlobalScope
 
@@ -98,6 +98,9 @@ const recevoirProgression = async (p: Progression): Promise<void> => {
   const vientDeFinir = estFini(p) && !(memePlan && estFini(avant))
   await ecrireChantier({ ...p, finiA: vientDeFinir ? p.date : memePlan ? avant.finiA : undefined })
   if (briques || vientDeFinir) await ajouterActivite(jourDe(p.date), briques, vientDeFinir ? 1 : 0)
+  // Un mur fini devient un bâtiment du quartier, d'autant d'étages que d'étapes.
+  if (vientDeFinir)
+    await ajouterBatiments([{ id: `${p.sessionId}:${p.date}`, session: p.session, couleur: p.couleur, titre: p.titre, etages: p.etapes.length, date: p.date }])
 }
 
 const effacerLesTermines = async (sauf?: string): Promise<void> => {

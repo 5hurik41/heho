@@ -8,6 +8,9 @@ const REGLAGES = 'reglages'
 const CHANTIERS = 'chantiers'
 // Le mur d'activité : par jour, les briques posées (étapes faites) et les murs finis.
 const ACTIVITE = 'activite'
+// Le quartier : chaque mur fini devient un bâtiment de la ligne d'horizon. Il garde ses derniers bâtiments.
+const QUARTIER = 'quartier'
+const BATIMENTS_MAX = 60
 // Au-delà, les plus anciens messages sont effacés.
 const GARDER = 200
 
@@ -15,6 +18,8 @@ export type Reglage = { son: boolean; vibration: boolean }
 // Un chantier tel que le téléphone le garde : la progression reçue, et l'heure où il a été vu terminé.
 export type Chantier = Progression & { finiA?: number }
 export type Journee = { jour: string; briques: number; murs: number }
+// Un bâtiment du quartier : un chantier fini, autant d'étages que d'étapes.
+export type Batiment = { id: string; session: string; couleur: string; titre: string | null; etages: number; date: number }
 
 // Le jour, à l'heure du téléphone : « 2026-10-27 ».
 export const jourDe = (ms: number): string => {
@@ -25,7 +30,7 @@ export const jourDe = (ms: number): string => {
 
 const ouvrir = (): Promise<IDBDatabase> =>
   new Promise((resoudre, rejeter) => {
-    const req = indexedDB.open(BASE, 3)
+    const req = indexedDB.open(BASE, 4)
     // Chaque version ajoute ce qui lui manque : un téléphone en version 1 garde son historique.
     req.onupgradeneeded = e => {
       const db = req.result
@@ -35,6 +40,7 @@ const ouvrir = (): Promise<IDBDatabase> =>
       }
       if (e.oldVersion < 2) db.createObjectStore(CHANTIERS, { keyPath: 'sessionId' })
       if (e.oldVersion < 3) db.createObjectStore(ACTIVITE, { keyPath: 'jour' })
+      if (e.oldVersion < 4) db.createObjectStore(QUARTIER, { keyPath: 'id' }).createIndex('date', 'date')
     }
     req.onsuccess = () => resoudre(req.result)
     req.onerror = () => rejeter(req.error)
@@ -96,6 +102,32 @@ export const ajouterActivite = async (jour: string, briques: number, murs: numbe
   const store = db.transaction(ACTIVITE, 'readwrite').objectStore(ACTIVITE)
   const avant = ((await attendre(store.get(jour))) as Journee | undefined) ?? { jour, briques: 0, murs: 0 }
   await attendre(store.put({ jour, briques: avant.briques + briques, murs: avant.murs + murs }))
+}
+
+// Une restauration depuis le PC : pour chaque jour, le plus grand des deux comptes (rien ne compte deux fois).
+export const fusionnerActivite = async (journees: Journee[]): Promise<void> => {
+  const db = await ouvrir()
+  const store = db.transaction(ACTIVITE, 'readwrite').objectStore(ACTIVITE)
+  for (const j of journees) {
+    const avant = ((await attendre(store.get(j.jour))) as Journee | undefined) ?? { jour: j.jour, briques: 0, murs: 0 }
+    await attendre(store.put({ jour: j.jour, briques: Math.max(avant.briques, j.briques), murs: Math.max(avant.murs, j.murs) }))
+  }
+}
+
+// Ajoute ou remplace des bâtiments (même id, même chantier fini), puis ne garde que les plus récents.
+export const ajouterBatiments = async (batiments: Batiment[]): Promise<void> => {
+  const db = await ouvrir()
+  const store = db.transaction(QUARTIER, 'readwrite').objectStore(QUARTIER)
+  for (const b of batiments) await attendre(store.put(b))
+  const cles = await attendre(store.index('date').getAllKeys())
+  for (const cle of cles.slice(0, Math.max(0, cles.length - BATIMENTS_MAX))) store.delete(cle)
+}
+
+// Du plus ancien au plus récent : la ligne d'horizon se lit de gauche à droite.
+export const lireQuartier = async (): Promise<Batiment[]> => {
+  const db = await ouvrir()
+
+  return (await attendre(db.transaction(QUARTIER).objectStore(QUARTIER).index('date').getAll())) as Batiment[]
 }
 
 export const lireActivite = async (): Promise<Map<string, Journee>> => {
