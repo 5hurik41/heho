@@ -1,7 +1,7 @@
 /// <reference lib="webworker" />
 // Le service worker : reçoit le push, montre la notification, garde le message dans l'historique.
-import { enCours, estFini, faites, image, lireMessage, lireProgression, titre, type Message, type Progression } from './message'
-import { ajouterActivite, ajouterBatiments, ajouterMessage, ecrireChantier, jourDe, lireChantier, lireReglage } from './stockage'
+import { enCours, estFini, faites, image, lireMessage, lireProgression, lireSauvegarde, titre, type Message, type Progression } from './message'
+import { ajouterActivite, ajouterBatiments, ajouterMessage, ecrireChantier, fusionnerActivite, jourDe, lireChantier, lireReglage } from './stockage'
 
 declare const self: ServiceWorkerGlobalScope
 
@@ -117,6 +117,26 @@ self.addEventListener('push', e => {
   try {
     brut = e.data?.json()
   } catch {
+    return
+  }
+  const s = lireSauvegarde(brut)
+  if (s) {
+    e.waitUntil(
+      (async () => {
+        await fusionnerActivite(s.jours.map(([jour, briques, murs]) => ({ jour, briques, murs })))
+        await ajouterBatiments(s.batiments)
+        await self.registration.showNotification('Hého · Mur du chef restauré', {
+          body: `${s.jours.length} jour${s.jours.length > 1 ? 's' : ''} et ${s.batiments.length} bâtiment${s.batiments.length > 1 ? 's' : ''} repris du PC.`,
+          tag: 'sauvegarde',
+          silent: true,
+          icon: './icones/icone-192.png',
+          badge: './icones/badge-96.png',
+          data: { ecran: 'historique', fini: true },
+        })
+        await prevenirLesFenetres('historique')
+      })(),
+    )
+
     return
   }
   const p = lireProgression(brut)

@@ -121,3 +121,35 @@ export const lireProgression = (brut: unknown): Progression | null => {
 
   return { v: 1, type: 'progression', sessionId: p.sessionId, session: p.session, couleur: p.couleur, titre: p.titre, etapes, ouvriers, date: p.date }
 }
+
+// ── La sauvegarde : le PC renvoie le mur du chef et le quartier à un téléphone (nouvelle association, /heho restaurer) ──
+// Le PC tient le même compte que le téléphone ; un envoi trop lourd pour un push part en plusieurs morceaux.
+
+export type Sauvegarde = {
+  v: 1
+  type: 'sauvegarde'
+  // Le numéro du morceau, pour que les morceaux ne se remplacent pas chez le service de push.
+  sessionId: string
+  jours: [jour: string, briques: number, murs: number][]
+  batiments: { id: string; session: string; couleur: string; titre: string | null; etages: number; date: number }[]
+}
+
+export const lireSauvegarde = (brut: unknown): Sauvegarde | null => {
+  if (typeof brut !== 'object' || brut === null) return null
+  const s = brut as Record<string, unknown>
+  if (s.v !== 1 || s.type !== 'sauvegarde' || !chaine(s.sessionId) || !Array.isArray(s.jours) || !Array.isArray(s.batiments)) return null
+  const jours = s.jours.filter(
+    (j): j is [string, number, number] =>
+      Array.isArray(j) && typeof j[0] === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(j[0]) && nombre(j[1]) && nombre(j[2]),
+  )
+  const batiments = s.batiments.flatMap(b => {
+    const { id, session, couleur, titre, etages, date } = (b ?? {}) as Record<string, unknown>
+    const valide =
+      chaine(id) && chaine(session) && typeof couleur === 'string' && /^#[0-9a-f]{6}$/i.test(couleur) &&
+      (titre === null || chaine(titre)) && nombre(etages) && nombre(date)
+
+    return valide ? [{ id, session, couleur, titre: titre as string | null, etages, date }] : []
+  })
+
+  return { v: 1, type: 'sauvegarde', sessionId: s.sessionId, jours, batiments }
+}
