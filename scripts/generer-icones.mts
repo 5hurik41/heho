@@ -5,7 +5,7 @@ import { mkdirSync, writeFileSync } from 'node:fs'
 import { pathToFileURL } from 'node:url'
 import { homedir } from 'node:os'
 import { join } from 'node:path'
-import { BADGES } from '../src/message.ts'
+import { BADGES, ROLES as ROLES_EQUIPE } from '../src/message.ts'
 
 const SPRITES = process.argv[2] ?? join(homedir(), '.claude', 'mods-perso', 'task-steps', 'hooks', 'sprites.ts')
 const PUBLIC = new URL('../public/', import.meta.url)
@@ -218,8 +218,13 @@ const contour = (g: Grille): Grille => {
   )
 }
 
-const ouvrier = (role: string): Grille => contour(pixels(role, 1).map(l => l.map(c => (c === null ? null : recolorer(hex(c))))))
+const ouvrier = (role: string, image = 1): Grille => contour(pixels(role, image).map(l => l.map(c => (c === null ? null : recolorer(hex(c))))))
 for (const [situation, role] of Object.entries(ROLES)) writeFileSync(new URL(`ouvriers/${situation}.svg`, PUBLIC), svg(ouvrier(role)))
+
+// L'animation de chantier : chaque rôle de l'équipe en deux images, qui alternent.
+mkdirSync(new URL('ouvriers/roles/', PUBLIC), { recursive: true })
+for (const role of ROLES_EQUIPE)
+  for (const image of [0, 1]) writeFileSync(new URL(`ouvriers/roles/${role}-${image}.svg`, PUBLIC), svg(ouvrier(role, image)))
 
 // ── Les grandes images des notifications : l'ouvrier sur la couleur du badge, debout sur le marquage au sol ──
 

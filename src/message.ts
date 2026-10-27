@@ -77,3 +77,47 @@ export const lireMessage = (brut: unknown): Message | null => {
     date: m.date,
   }
 }
+
+// ── La progression d'un chantier : le plan de task-steps, envoyé à chaque étape franchie ──
+// Un push de progression porte `type: 'progression'` ; un appel n'a pas de champ `type`.
+
+export const ROLES = ['builder', 'researcher', 'mechanic', 'foreman', 'painter', 'courier', 'thinker', 'resting'] as const
+export type Role = (typeof ROLES)[number]
+export type Statut = 'pending' | 'in_progress' | 'completed'
+
+export type Progression = {
+  v: 1
+  type: 'progression'
+  sessionId: string
+  session: string
+  couleur: string
+  titre: string | null
+  etapes: { texte: string; statut: Statut }[]
+  // Les rôles des ouvriers au travail dans la session (Claude et ses sous-agents), pour l'animation.
+  ouvriers: Role[]
+  date: number
+}
+
+export const faites = (p: Progression): number => p.etapes.filter(e => e.statut === 'completed').length
+export const enCours = (p: Progression): string | undefined => p.etapes.find(e => e.statut === 'in_progress')?.texte
+export const estFini = (p: Progression): boolean => p.etapes.length > 0 && faites(p) === p.etapes.length
+
+const STATUTS: readonly string[] = ['pending', 'in_progress', 'completed']
+
+export const lireProgression = (brut: unknown): Progression | null => {
+  if (typeof brut !== 'object' || brut === null) return null
+  const p = brut as Record<string, unknown>
+  if (p.v !== 1 || p.type !== 'progression') return null
+  if (!chaine(p.sessionId) || !chaine(p.session) || !nombre(p.date)) return null
+  if (typeof p.couleur !== 'string' || !/^#[0-9a-f]{6}$/i.test(p.couleur)) return null
+  if (p.titre !== null && !chaine(p.titre)) return null
+  if (!Array.isArray(p.etapes) || p.etapes.length > 30 || !Array.isArray(p.ouvriers)) return null
+  const etapes = p.etapes.flatMap(e => {
+    const { texte, statut } = (e ?? {}) as Record<string, unknown>
+
+    return chaine(texte) && typeof statut === 'string' && STATUTS.includes(statut) ? [{ texte, statut: statut as Statut }] : []
+  })
+  const ouvriers = p.ouvriers.filter((r): r is Role => ROLES.includes(r as Role)).slice(0, 4)
+
+  return { v: 1, type: 'progression', sessionId: p.sessionId, session: p.session, couleur: p.couleur, titre: p.titre, etapes, ouvriers, date: p.date }
+}

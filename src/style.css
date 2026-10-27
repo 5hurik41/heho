@@ -94,6 +94,61 @@ p { margin: 0; }
 .reglage label { display: flex; align-items: center; gap: 6px; min-height: 44px; }
 .reglage input { width: 22px; height: 22px; accent-color: var(--lampe); }
 
-.nav { display: grid; grid-template-columns: 1fr 1fr; border-top: 4px solid var(--trait); padding-bottom: env(safe-area-inset-bottom); background: var(--carte); }
-.nav a { display: grid; place-items: center; min-height: 60px; color: var(--craie); font-weight: 700; letter-spacing: .08em; text-transform: uppercase; text-decoration: none; }
+.effacer { width: 44px; height: 44px; margin: -12px -8px -12px 0; flex-shrink: 0; display: grid; place-items: center; border: 0; background: none; color: var(--craie-douce); }
+.effacer:hover { color: var(--balise); }
+
+h3 { margin: 0; font-size: 17px; }
+.carte-aide { display: flex; flex-direction: column; gap: 6px; padding: 14px; border: 2px dashed var(--lampe); border-radius: var(--rayon); }
+.carte-aide p { color: var(--craie-douce); font-size: 15px; }
+.carte-aide strong { color: var(--craie); }
+
+/* ── La scène de chantier : les ouvriers au travail devant un mur qui monte avec les étapes ── */
+.scene {
+  position: relative;
+  display: grid;
+  grid-template-columns: 1fr auto;
+  align-items: end;
+  gap: 12px;
+  padding: 14px 14px 0;
+  background: var(--barre);
+  border: 2px solid var(--trait);
+  border-radius: var(--rayon);
+  color: var(--craie);
+  text-decoration: none;
+  overflow: hidden;
+}
+/* Le sol : la même bande d'asphalte à tirets jaunes que sous la barre. */
+.scene::after {
+  content: '';
+  grid-column: 1 / -1;
+  height: 8px;
+  margin: 0 -14px;
+  background: repeating-linear-gradient(90deg, var(--lampe) 0 12px, transparent 12px 24px), var(--asphalte);
+}
+.equipe { display: flex; align-items: end; gap: 4px; }
+.ouvrier { position: relative; width: 56px; height: 56px; }
+.ouvrier img { position: absolute; inset: 0; width: 100%; height: 100%; }
+/* Deux images qui alternent : l'outil se lève et retombe. */
+.ouvrier .image-2 { animation: alterner 0.9s steps(1) infinite; }
+@keyframes alterner { 0% { opacity: 0; } 50% { opacity: 1; } }
+.mur { display: grid; grid-template-columns: repeat(7, 14px); gap: 2px; padding-bottom: 2px; }
+.brique { height: 8px; border-radius: 1px; background: transparent; outline: 1px dashed var(--trait); outline-offset: -1px; }
+.brique.posee { background: var(--balise); outline: none; box-shadow: inset 0 -2px 0 #B8501C; }
+.legende { grid-column: 1 / -1; display: flex; flex-wrap: wrap; align-items: center; gap: 8px; font-size: 13px; color: var(--craie-douce); overflow-wrap: anywhere; }
+@media (prefers-reduced-motion: reduce) { .ouvrier .image-2 { animation: none; } }
+
+/* ── Les chantiers ── */
+.chantier { display: flex; flex-direction: column; gap: 10px; padding: 12px; background: var(--carte); border: 2px solid var(--trait); border-radius: var(--rayon); }
+.jauge { height: 10px; background: var(--barre); border-radius: var(--rayon); overflow: hidden; }
+.jauge span { display: block; height: 100%; background: var(--lampe); }
+.etapes { margin: 0; padding: 0; list-style: none; display: flex; flex-direction: column; gap: 6px; font-size: 15px; }
+.etapes li { display: flex; align-items: baseline; gap: 10px; overflow-wrap: anywhere; }
+.etapes li.completed { color: var(--craie-douce); text-decoration: line-through; text-decoration-color: var(--trait); }
+.etapes li.in_progress { color: var(--lampe); font-weight: 700; }
+.marque { width: 10px; height: 10px; flex-shrink: 0; border: 2px solid var(--trait); border-radius: 1px; transform: translateY(1px); }
+.completed .marque { background: var(--craie-douce); border-color: var(--craie-douce); }
+.in_progress .marque { background: var(--lampe); border-color: var(--lampe); }
+
+.nav { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); border-top: 4px solid var(--trait); padding-bottom: env(safe-area-inset-bottom); background: var(--carte); }
+.nav a { display: grid; place-items: center; min-height: 60px; color: var(--craie); font-size: 14px; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; text-decoration: none; }
 .nav a[aria-current='page'] { background: var(--lampe); color: var(--barre); }

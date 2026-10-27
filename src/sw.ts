@@ -1,7 +1,7 @@
 /// <reference lib="webworker" />
 // Le service worker : reçoit le push, montre la notification, garde le message dans l'historique.
-import { image, lireMessage, titre, type Message } from './message'
-import { ajouterMessage, lireReglage } from './stockage'
+import { enCours, estFini, faites, image, lireMessage, lireProgression, titre, type Message, type Progression } from './message'
+import { ajouterMessage, ecrireChantier, lireReglage } from './stockage'
 
 declare const self: ServiceWorkerGlobalScope
 
@@ -71,11 +71,38 @@ const montrer = async (m: Message): Promise<void> => {
   await self.registration.showNotification(titre(m), options)
 }
 
+// La progression d'un chantier : une notification silencieuse par session, mise à jour sur place
+// (Chrome exige une notification à chaque push).
+const montrerProgression = async (p: Progression): Promise<void> => {
+  const total = p.etapes.length
+  const options: Options = {
+    body: estFini(p) ? `Terminé · ${total}/${total}` : `${faites(p)}/${total}${enCours(p) ? ` · ${enCours(p)}` : ''}`,
+    tag: `chantier-${p.sessionId}`,
+    renotify: false,
+    silent: true,
+    icon: './icones/icone-192.png',
+    badge: './icones/badge-96.png',
+    timestamp: p.date,
+    data: { ecran: 'chantiers' },
+  }
+  await self.registration.showNotification(`${p.session} · ${p.titre ?? 'Chantier en cours'}`, options)
+}
+
+const prevenirLesFenetres = async (ecran: string): Promise<void> => {
+  for (const client of await self.clients.matchAll({ type: 'window' })) client.postMessage({ type: 'maj', ecran })
+}
+
 self.addEventListener('push', e => {
   let brut: unknown = null
   try {
     brut = e.data?.json()
   } catch {
+    return
+  }
+  const p = lireProgression(brut)
+  if (p) {
+    e.waitUntil(ecrireChantier(p).then(() => montrerProgression(p)).then(() => prevenirLesFenetres('chantiers')))
+
     return
   }
   const m = lireMessage(brut)
@@ -84,20 +111,22 @@ self.addEventListener('push', e => {
     (async () => {
       await ajouterMessage(m)
       await montrer(m)
-      for (const client of await self.clients.matchAll({ type: 'window' })) client.postMessage({ type: 'historique' })
+      await prevenirLesFenetres('historique')
     })(),
   )
 })
 
-// Un toucher sur la notification ouvre l'historique (le téléphone ne fait que recevoir).
+// Un toucher sur la notification ouvre l'écran qui va avec (le téléphone ne fait que recevoir).
 self.addEventListener('notificationclick', e => {
   e.notification.close()
+  const ecran = (e.notification.data as { ecran?: string } | null)?.ecran ?? 'historique'
   e.waitUntil(
     (async () => {
       const fenetres = await self.clients.matchAll({ type: 'window', includeUncontrolled: true })
       const ouverte = fenetres[0]
-      if (ouverte) return void (await ouverte.focus())
-      await self.clients.openWindow('./#historique')
+      if (!ouverte) return void (await self.clients.openWindow(`./#${ecran}`))
+      ouverte.postMessage({ type: 'aller', ecran })
+      await ouverte.focus()
     })(),
   )
 })

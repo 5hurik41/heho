@@ -1,19 +1,16 @@
-// L'appli : association avec le PC, historique, réglages. Trois écrans choisis par l'adresse (#…).
+// L'appli : association avec le PC, chantiers, historique, réglages. Des écrans choisis par l'adresse (#…).
 import '@fontsource/jersey-10'
 import '@fontsource/atkinson-hyperlegible-next/400.css'
 import '@fontsource/atkinson-hyperlegible-next/700.css'
 import './style.css'
+import { carte, chantierActif, CROIX, echapper, scene } from './chantier'
 import { CLE_PUBLIQUE_VAPID } from './config'
 import { LIBELLES, SITUATIONS, TITRES, type Message, type Situation } from './message'
-import { ecrireReglage, lireHistorique, lireReglage } from './stockage'
+import { ecrireReglage, effacerChantier, effacerMessage, lireChantiers, lireHistorique, lireReglage, viderHistorique } from './stockage'
 
 const ecran = document.querySelector<HTMLElement>('#ecran')!
 const nav = document.querySelector<HTMLElement>('#nav')!
 const etat = document.querySelector<HTMLElement>('#etat')!
-
-// Les textes viennent du PC : on les échappe avant de les poser dans la page.
-const echapper = (s: string): string =>
-  s.replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]!)
 
 const base64url = (b: Uint8Array): string =>
   btoa(String.fromCharCode(...b)).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '')
@@ -94,16 +91,56 @@ const ligne = (m: Message): string => `
         <span class="badge" style="background:${m.couleur}">${echapper(m.session)}</span>
         <span class="situation">${LIBELLES[m.situation]}</span>
         <span class="heure">${heure(m.date)}</span>
+        <button class="effacer" type="button" data-message="${echapper(m.id)}" aria-label="Effacer cet appel">${CROIX}</button>
       </div>
       <p class="texte">${echapper(m.texte)}${m.rappel ? ` · rappel ${m.rappel}/3` : ''}</p>
     </div>
   </article>`
 
 const historique = async (): Promise<void> => {
-  const messages = await lireHistorique()
-  ecran.innerHTML = messages.length
-    ? `<h2>Derniers appels</h2>${messages.map(ligne).join('')}`
-    : `<h2>Rien pour l'instant</h2><p class="aide">Les appels du PC s'afficheront ici, même hors ligne.</p>`
+  const [messages, chantiers] = await Promise.all([lireHistorique(), lireChantiers()])
+  ecran.innerHTML = `
+    ${scene(chantierActif(chantiers))}
+    ${
+      messages.length
+        ? `<h2>Derniers appels</h2>${messages.map(ligne).join('')}
+           <button class="bouton second" id="vider" type="button">Tout effacer</button>`
+        : `<h2>Rien pour l'instant</h2><p class="aide">Les appels du PC s'afficheront ici, même hors ligne.</p>`
+    }`
+  ecran.querySelectorAll<HTMLButtonElement>('button[data-message]').forEach(b =>
+    b.addEventListener('click', async () => {
+      await effacerMessage(b.dataset.message!)
+      b.closest('article')?.remove()
+      if (!ecran.querySelector('article.ligne')) await historique()
+    }),
+  )
+  // Deux temps, sans boîte de dialogue : le premier toucher demande confirmation, le second efface.
+  const vider = ecran.querySelector<HTMLButtonElement>('#vider')
+  vider?.addEventListener('click', async () => {
+    if (!vider.dataset.confirme) {
+      vider.dataset.confirme = 'oui'
+      vider.textContent = 'Toucher encore pour tout effacer'
+
+      return
+    }
+    await viderHistorique()
+    await historique()
+  })
+}
+
+// ── Chantiers ────────────────────────────────────────────────────────────
+
+const chantiers = async (): Promise<void> => {
+  const liste = await lireChantiers()
+  ecran.innerHTML = liste.length
+    ? `<h2>Chantiers</h2>${liste.map(carte).join('')}`
+    : `<h2>Aucun chantier</h2><p class="aide">Quand une session suit des étapes, son avancement s'affiche ici, étape par étape.</p>`
+  ecran.querySelectorAll<HTMLButtonElement>('button[data-chantier]').forEach(b =>
+    b.addEventListener('click', async () => {
+      await effacerChantier(b.dataset.chantier!)
+      await chantiers()
+    }),
+  )
 }
 
 // ── Réglages ─────────────────────────────────────────────────────────────
@@ -124,6 +161,13 @@ const reglages = async (): Promise<void> => {
   ecran.innerHTML = `
     <h2>Réglages</h2>
     ${lignes.join('')}
+    <section class="carte-aide">
+      <h3>Voir les appels en bandeau</h3>
+      <p>Android décide seul si une notification s'affiche en haut de l'écran. Pour Hého, une seule fois :
+        Paramètres › Applis › <strong>Hého</strong> (ou <strong>Chrome</strong> si l'appli n'est pas installée) ›
+        Notifications › <strong>${echapper(location.host)}</strong> › active <strong>Afficher en pop-up</strong>
+        (parfois appelé « Priorité élevée »).</p>
+    </section>
     <button class="bouton" id="test" type="button">Envoyer une notification de test</button>
     <p class="aide" id="message" role="status"></p>`
   ecran.querySelectorAll<HTMLInputElement>('input[type=checkbox]').forEach(caseACocher =>
@@ -156,7 +200,7 @@ const reglages = async (): Promise<void> => {
 
 // ── Navigation ───────────────────────────────────────────────────────────
 
-const ECRANS: Record<string, () => Promise<void>> = { accueil, historique, reglages }
+const ECRANS: Record<string, () => Promise<void>> = { accueil, chantiers, historique, reglages }
 
 const afficher = async (): Promise<void> => {
   const associe = (await abonnementActuel()) !== null
@@ -170,8 +214,13 @@ const afficher = async (): Promise<void> => {
 }
 
 window.addEventListener('hashchange', () => void afficher())
-// Un push reçu pendant que l'appli est ouverte rafraîchit l'historique.
+// Le service worker prévient : un push reçu pendant que l'appli est ouverte rafraîchit l'écran affiché ; un
+// toucher sur une notification mène à son écran.
 navigator.serviceWorker?.addEventListener('message', e => {
-  if ((e.data as { type?: string })?.type === 'historique' && !['#reglages', '#accueil'].includes(location.hash)) void historique()
+  const { type, ecran: cible } = (e.data ?? {}) as { type?: string; ecran?: string }
+  const affiche = location.hash.slice(1) || 'historique'
+  if (type === 'aller' && cible) location.hash = cible
+  // L'historique montre aussi la scène du chantier : il suit les deux.
+  if (type === 'maj' && (affiche === cible || affiche === 'historique')) void afficher()
 })
 void afficher()
