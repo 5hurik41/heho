@@ -15,7 +15,26 @@ const exacte = (date: number): string =>
 // Un appel et ses rappels portent le même id, suivi de -0, -1, -2… (le mod notify-worker).
 export const racineAppel = (id: string): string => id.replace(/-\d+$/, '')
 
-export const ficheAppel = (m: Message, historique: Message[]): string => {
+// La partie « Répondre » d'une fiche (BRIEF.md, bloc 4) : les options, du texte libre, ou refuser une permission ;
+// la réponse déjà envoyée ; ou pourquoi on ne peut plus répondre d'ici.
+const repondre = (m: Message, possible: boolean): string => {
+  const a = m.attendue
+  if (!a) return ''
+  if (m.repondu)
+    return `<p class="repondu">Tu as répondu « ${echapper(m.repondu.texte)} » ${new Date(m.repondu.date).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' })}.</p>`
+  if (!possible) return `<p class="aide">Pour cet appel, la réponse se donne au PC.</p>`
+
+  return `
+    <section class="repondre" aria-labelledby="titre-repondre">
+      <h3 id="titre-repondre">Répondre d'ici</h3>
+      ${a.options.length ? `<div class="options">${a.options.map((o, i) => `<button class="bouton second" type="button" data-choix="${i}">${echapper(o)}</button>`).join('')}</div>` : ''}
+      ${a.libre ? `<label class="aide" for="reponse-texte">${a.options.length ? 'Ou une autre réponse' : 'Ta réponse'}</label><textarea class="code" id="reponse-texte" rows="3"></textarea><button class="bouton" type="button" id="envoyer-reponse">Envoyer</button>` : ''}
+      ${a.refuser ? `<button class="bouton refus" type="button" id="refuser">Refuser</button><p class="aide">Autoriser se fait au PC.</p>` : ''}
+      <p class="aide" id="etat-reponse" role="status"></p>
+    </section>`
+}
+
+export const ficheAppel = (m: Message, historique: Message[], possible = false): string => {
   const envois = historique.filter(x => racineAppel(x.id) === racineAppel(m.id)).sort((a, b) => a.date - b.date)
 
   return `
@@ -27,6 +46,7 @@ export const ficheAppel = (m: Message, historique: Message[]): string => {
       </div>
     </div>
     <p class="fiche-texte">${echapper(m.texte)}</p>
+    ${repondre(m, possible)}
     <dl class="fiche-faits">
       ${envois
         .map(e => `<div><dt>${e.rappel ? `Rappel ${e.rappel}` : 'Appel'}</dt><dd><time datetime="${new Date(e.date).toISOString()}">${exacte(e.date)}</time></dd></div>`)

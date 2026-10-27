@@ -27,6 +27,38 @@ export type Message = {
   date: number
   // Une tâche de fond : l'id de l'appel qui l'a lancée. Sa fin remplace la notification de son lancement.
   tache?: string
+  // Ce que le téléphone peut répondre à cet appel (BRIEF.md, bloc 4) ; absent, il ne peut rien répondre.
+  attendue?: Attendue
+  // Sur le téléphone seulement : la réponse qu'il a envoyée.
+  repondu?: { texte: string; date: number }
+}
+
+// ── Répondre depuis le téléphone (BRIEF.md, bloc 4) ──
+
+// Ce qu'un appel accepte : `appel`, l'id que la réponse doit citer (le même pour l'appel et ses rappels) ; des
+// options à choisir ; du texte libre ; un refus (une permission : le téléphone ne peut que refuser).
+export type Attendue = { appel: string; options: string[]; libre: boolean; refuser: boolean }
+
+// Le push qui donne au téléphone sa boîte aux lettres : le canal ntfy.sh et la clé AES-256-GCM, en base64url.
+export type Cle = { v: 1; type: 'cle'; sessionId: string; canal: string; cle: string; date: number }
+
+// Ce que le téléphone dépose, chiffré, dans la boîte : un choix, un texte ou un refus, pour un appel.
+export type Reponse = { v: 1; appel: string; sessionId: string; choix?: string; texte?: string; refus?: true; date: number }
+
+const lireAttendue = (brut: unknown): Attendue | null => {
+  if (typeof brut !== 'object' || brut === null) return null
+  const a = brut as Record<string, unknown>
+  if (!chaine(a.appel) || !Array.isArray(a.options) || typeof a.libre !== 'boolean' || typeof a.refuser !== 'boolean') return null
+
+  return { appel: a.appel, options: a.options.filter(chaine).slice(0, 4), libre: a.libre, refuser: a.refuser }
+}
+
+export const lireCle = (brut: unknown): Cle | null => {
+  if (typeof brut !== 'object' || brut === null) return null
+  const c = brut as Record<string, unknown>
+  if (c.v !== 1 || c.type !== 'cle' || !chaine(c.canal) || !/^[\w-]{43}$/.test(String(c.cle)) || !nombre(c.date)) return null
+
+  return { v: 1, type: 'cle', sessionId: 'cle', canal: c.canal, cle: String(c.cle), date: c.date }
 }
 
 // ── Le forfait : joint à chaque push quand le PC le connaît (BRIEF.md, « Forfait ») ──
@@ -129,6 +161,7 @@ export const lireMessage = (brut: unknown): Message | null => {
   if (!SITUATIONS.includes(m.situation as Situation)) return null
   if (!nombre(m.rappel) || !nombre(m.date)) return null
   if (m.tache !== undefined && !chaine(m.tache)) return null
+  const attendue = lireAttendue(m.attendue)
 
   return {
     v: 1,
@@ -141,6 +174,7 @@ export const lireMessage = (brut: unknown): Message | null => {
     rappel: m.rappel,
     date: m.date,
     ...(m.tache ? { tache: m.tache } : {}),
+    ...(attendue ? { attendue } : {}),
   }
 }
 

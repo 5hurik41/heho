@@ -13,6 +13,7 @@ import { ecranForfait } from './forfait'
 import { ATTENTES, estFini, LIBELLES, OUVRIER, REGLABLES, TITRES, type Message, type Situation } from './message'
 import { chantierFini, ouvrirJeu } from './jeu'
 import { picto } from './pictos'
+import { dire, peutRepondre, repondre, type Contenu } from './reponse'
 import { animerRue, livrer } from './rue'
 import {
   ecrireReglage,
@@ -21,6 +22,7 @@ import {
   lireActivite,
   lireChantiers,
   decernerMedailles,
+  lireBoite,
   lireForfaitGarde,
   lireMedailles,
   lireHistorique,
@@ -122,6 +124,40 @@ const ligne = (m: Message): string => `
     </div>
   </article>`
 
+// La fiche d'un appel, et sa réponse depuis le téléphone (BRIEF.md, bloc 4). La liste se redessine à la fermeture si
+// une réponse est partie.
+const ouvrirFicheAppel = async (id: string): Promise<void> => {
+  const [messages, boite] = await Promise.all([lireHistorique(), lireBoite()])
+  const m = messages.find(x => x.id === id)
+  if (!m) return
+  let envoyee = false
+  const corps = ouvrirFeuille(ficheAppel(m, messages, peutRepondre(m, boite)), () => {
+    if (envoyee && (location.hash.slice(1) || 'historique') === 'historique') void historique()
+  })
+  const etat = corps.querySelector<HTMLElement>('#etat-reponse')
+  const envoyer = async (c: Contenu): Promise<void> => {
+    corps.querySelectorAll<HTMLButtonElement>('.repondre button').forEach(b => (b.disabled = true))
+    if (etat) etat.textContent = 'Envoi…'
+    try {
+      await repondre(m, c)
+      envoyee = true
+      if (etat) etat.textContent = `Réponse envoyée : « ${dire(c)} ». Claude la reçoit dans quelques secondes.`
+    } catch (erreur) {
+      corps.querySelectorAll<HTMLButtonElement>('.repondre button').forEach(b => (b.disabled = false))
+      if (etat) etat.textContent = `La réponse n'est pas partie (${erreur instanceof Error ? erreur.message : 'réseau'}). Réessaie.`
+    }
+  }
+  corps.querySelectorAll<HTMLButtonElement>('[data-choix]').forEach(b =>
+    b.addEventListener('click', () => void envoyer({ choix: m.attendue!.options[Number(b.dataset.choix)]! })),
+  )
+  corps.querySelector('#envoyer-reponse')?.addEventListener('click', () => {
+    const texte = corps.querySelector<HTMLTextAreaElement>('#reponse-texte')!.value.trim()
+    if (texte) void envoyer({ texte })
+    else if (etat) etat.textContent = 'Écris d’abord ta réponse.'
+  })
+  corps.querySelector('#refuser')?.addEventListener('click', () => void envoyer({ refus: true }))
+}
+
 // Les filtres choisis tiennent tant que l'appli reste ouverte.
 const filtres: Filtres = { sessions: new Set(), types: new Set() }
 
@@ -205,10 +241,7 @@ const historique = async (): Promise<void> => {
     }),
   )
   ecran.querySelectorAll<HTMLElement>('article[data-fiche]').forEach(a => {
-    const ouvrir = () => {
-      const m = messages.find(x => x.id === a.dataset.fiche)
-      if (m) ouvrirFeuille(ficheAppel(m, messages))
-    }
+    const ouvrir = () => void ouvrirFicheAppel(a.dataset.fiche!)
     a.addEventListener('click', ouvrir)
     a.addEventListener('keydown', e => (e.key === 'Enter' || e.key === ' ') && e.target === a && (e.preventDefault(), ouvrir()))
   })
@@ -404,9 +437,11 @@ window.addEventListener('hashchange', () => void afficher())
 // Le service worker prévient : un push reçu pendant que l'appli est ouverte rafraîchit l'écran affiché ; un
 // toucher sur une notification mène à son écran.
 navigator.serviceWorker?.addEventListener('message', e => {
-  const { type, ecran: cible } = (e.data ?? {}) as { type?: string; ecran?: string }
+  const { type, ecran: cible, fiche } = (e.data ?? {}) as { type?: string; ecran?: string; fiche?: string }
   const affiche = location.hash.slice(1) || 'historique'
   if (type === 'aller' && cible) location.hash = cible
+  // Un appel qui attend une réponse, touché dans les notifications : sa fiche.
+  if (type === 'aller' && fiche) void ouvrirFicheAppel(fiche)
   // Un appel arrive : le livreur passera dans la rue au prochain dessin de la scène.
   if (type === 'maj' && cible === 'historique') livreurAttendu = true
   // L'historique montre aussi la scène du chantier : il suit les deux. Le forfait arrive avec n'importe quel push.
@@ -420,6 +455,13 @@ void decernerMedailles(true).catch(() => [])
 void nettoyer()
   .catch(() => undefined)
   .then(afficher)
+  // L'appli ouverte par une notification d'appel qui attend une réponse : sa fiche, par-dessus l'historique.
+  .then(() => {
+    const fiche = new URLSearchParams(location.search).get('fiche')
+    if (!fiche) return
+    history.replaceState(null, '', location.pathname + location.hash)
+    void ouvrirFicheAppel(fiche)
+  })
 
 // À l'ouverture, les notifications « Terminé » des chantiers s'effacent : le mur du chef en garde la trace.
 void enregistrement()
