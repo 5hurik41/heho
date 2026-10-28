@@ -348,7 +348,7 @@ html:not([data-lumieres="0"]) .lumiere { opacity: 1; }
 
 /* ── Bloc 3 : la ville du soleil (Réglages) ── */
 .reglage-ville { display: flex; flex-direction: column; gap: 8px; padding: 12px; background: var(--carte); border-radius: var(--rayon); }
-.reglage-ville select, .lieu-libre input {
+.reglage-ville select, .lieu-libre input, .calme-plage input {
   min-height: 48px;
   padding: 0 10px;
   border: 2px solid var(--trait);
@@ -385,3 +385,51 @@ canvas.jeu { align-self: center; height: min(440px, 58dvh); aspect-ratio: 300 / 
 .medaille svg { width: 100%; max-width: 40px; height: auto; }
 .medaille.fermee svg { opacity: .8; }
 .grande-medaille svg { width: 72px; height: 72px; }
+
+/* ── À toi : ce qui attend la personne, en haut de l'historique (BRIEF.md, « À toi ») ── */
+/* Une couleur et un verbe par genre d'appel ; le texte du verbe reste sombre sur sa couleur, de jour comme de nuit. */
+.t-question { --type: #F5C542; }
+.t-permission { --type: #FF7A2F; }
+.t-recap { --type: #CBA6F7; }
+.t-done { --type: #6FAF5B; }
+.t-arret { --type: #E0443C; }
+.a-toi { display: flex; flex-direction: column; gap: 10px; }
+.a-toi h2 { display: flex; align-items: center; gap: 8px; }
+.compte { display: inline-grid; place-items: center; min-width: 22px; height: 22px; padding: 0 6px; border-radius: 11px; background: var(--balise); color: #111214; font-size: 13px; font-weight: 700; letter-spacing: 0; }
+.appel-ouvert {
+  display: flex;
+  gap: 12px;
+  align-items: flex-start;
+  padding: 18px 12px 12px;
+  border: 2px solid var(--trait);
+  border-left: 6px solid var(--type);
+  border-radius: var(--rayon);
+  background: repeating-linear-gradient(-45deg, var(--lampe) 0 8px, var(--barre) 8px 16px) top / 100% 6px no-repeat, var(--carte);
+  cursor: pointer;
+}
+.appel-ouvert .corps { display: flex; flex-direction: column; gap: 8px; min-width: 0; flex: 1; }
+.appel-ouvert .meta { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 8px; font-size: 13px; }
+.verbe { padding: 2px 8px; border-radius: var(--rayon); background: var(--type); color: #111214; font-weight: 700; text-transform: uppercase; letter-spacing: .04em; }
+.attend { color: var(--craie-douce); }
+.appel-ouvert .texte { overflow-wrap: anywhere; }
+/* Les questions et leurs options : de quoi choisir avant de revenir au PC. */
+.questions { display: flex; flex-direction: column; gap: 8px; }
+.question p { margin: 0 0 4px; font-weight: 700; font-size: 14px; }
+.options { display: flex; flex-wrap: wrap; gap: 6px; margin: 0; padding: 0; list-style: none; }
+.options li { padding: 3px 8px; border: 2px solid var(--trait); border-radius: var(--rayon); font-size: 13px; }
+.options li.recommandee { border-color: var(--lampe); font-weight: 700; }
+/* Un appel réglé : une ligne grise, sans pictogramme. */
+.ligne.regle { padding: 6px 10px; gap: 10px; background: var(--asphalte); }
+.ligne.regle .vignette { width: 36px; height: 36px; }
+.ligne.regle .vignette img { width: 28px; height: 28px; }
+.ligne.regle .picto { display: none; }
+.ligne.regle .texte { -webkit-line-clamp: 1; line-clamp: 1; color: var(--craie-douce); }
+.ligne.regle .situation { color: var(--craie-douce); }
+/* L'onglet Historique porte le compte de ce qui attend. */
+.nav a { position: relative; }
+.nav a .compte { position: absolute; top: 3px; right: 4px; min-width: 20px; height: 20px; font-size: 12px; }
+/* Réglages : les heures calmes. */
+.reglage-calme { display: flex; flex-direction: column; gap: 8px; padding: 12px; background: var(--carte); border-radius: var(--rayon); }
+.calme-actif { display: flex; align-items: center; gap: 8px; min-height: 44px; }
+.calme-plage { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+.calme-plage label { display: flex; flex-direction: column; gap: 4px; font-size: 13px; color: var(--craie-douce); }

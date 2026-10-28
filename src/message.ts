@@ -2,11 +2,13 @@
 // C'est la seule définition du format : le mod s'y réfère.
 
 // « fond » : une tâche lancée en arrière-plan ; « fond-fini » : la même, terminée, qui remplace son lancement.
-// « bilan » : le bilan d'une journée, envoyé à la reprise du lendemain (BRIEF.md, « Bilan »).
-export const SITUATIONS = ['question', 'permission', 'done', 'recap', 'budget', 'fond', 'fond-fini', 'bilan'] as const
+// « bilan » : le bilan d'une journée, envoyé à la reprise du lendemain (BRIEF.md, « Bilan »). « arret » : un chantier
+// qui ne bouge plus depuis 20 min (BRIEF.md, « Chantier à l'arrêt »).
+export const SITUATIONS = ['question', 'permission', 'done', 'recap', 'budget', 'fond', 'fond-fini', 'bilan', 'arret'] as const
 export type Situation = (typeof SITUATIONS)[number]
-// Celles qui attendent une réponse de la personne : l'historique les marque d'une bande de rubalise.
-export const ATTENTES: readonly Situation[] = ['question', 'permission', 'recap']
+// Celles qui attendent la personne : le bloc « À toi » de l'historique les montre tant qu'elles sont ouvertes
+// (BRIEF.md, « À toi »).
+export const ATTENTES: readonly Situation[] = ['question', 'permission', 'recap', 'done', 'arret']
 // Celles dont on règle le son et la vibration dans Réglages : toutes (BRIEF.md, « Tâches de fond »).
 export const REGLABLES: readonly Situation[] = SITUATIONS
 
@@ -27,7 +29,29 @@ export type Message = {
   date: number
   // Une tâche de fond : l'id de l'appel qui l'a lancée. Sa fin remplace la notification de son lancement.
   tache?: string
+  // Une question ou un récap : ses questions et leurs options, 4 au plus (BRIEF.md, « Options dans la fiche »).
+  questions?: Question[]
+  // L'appel qui attend encore la personne dans cette session (son id sans le numéro de rappel), ou null
+  // (BRIEF.md, « Appel ouvert ») ; absent d'un envoi plus ancien.
+  ouvert?: string | null
 }
+
+export type Question = { texte: string; options: string[] }
+
+// L'appel d'un envoi : son id sans le numéro de rappel. Les rappels d'un même appel le partagent.
+export const appelDe = (m: Pick<Message, 'id'>): string => m.id.replace(/-\d+$/, '')
+
+const lireQuestions = (brut: unknown): Question[] | undefined => {
+  if (!Array.isArray(brut)) return undefined
+  const q = brut.slice(0, 4).flatMap(x => {
+    const { texte, options } = (x ?? {}) as Record<string, unknown>
+
+    return chaine(texte) && Array.isArray(options) ? [{ texte, options: options.filter(chaine).slice(0, 4) }] : []
+  })
+
+  return q.length ? q : undefined
+}
+const lireOuvert = (brut: unknown): { ouvert?: string | null } => (brut === null || chaine(brut) ? { ouvert: brut } : {})
 
 // ── Le forfait : joint à chaque push quand le PC le connaît (BRIEF.md, « Forfait ») ──
 // Chrome exige une notification par push : l'état du forfait voyage avec les autres envois, jamais seul.
@@ -76,6 +100,7 @@ export const TITRES: Record<Situation, string> = {
   fond: 'Tâche de fond lancée',
   'fond-fini': 'Tâche de fond terminée',
   bilan: 'Le bilan de ta journée',
+  arret: 'Le chantier ne bouge plus',
 }
 
 // Le libellé court, dans l'historique.
@@ -88,10 +113,11 @@ export const LIBELLES: Record<Situation, string> = {
   fond: 'En fond',
   'fond-fini': 'Fond fini',
   bilan: 'Bilan',
+  arret: 'Arrêt',
 }
 
 // L'ouvrier de chaque situation (public/ouvriers/, public/notifications/) : les deux temps d'une tâche de fond
-// partagent le coursier ; le bilan, le maçon.
+// partagent le coursier ; le bilan, le maçon ; l'arrêt, le signaleur.
 export const OUVRIER: Record<Situation, string> = {
   question: 'question',
   permission: 'permission',
@@ -101,6 +127,7 @@ export const OUVRIER: Record<Situation, string> = {
   fond: 'fond',
   'fond-fini': 'fond',
   bilan: 'bilan',
+  arret: 'arret',
 }
 
 export const titre = (m: Message): string => `${m.session} · ${TITRES[m.situation]}`
@@ -141,6 +168,8 @@ export const lireMessage = (brut: unknown): Message | null => {
     rappel: m.rappel,
     date: m.date,
     ...(m.tache ? { tache: m.tache } : {}),
+    ...(lireQuestions(m.questions) ? { questions: lireQuestions(m.questions)! } : {}),
+    ...lireOuvert(m.ouvert),
   }
 }
 
@@ -164,6 +193,8 @@ export type Progression = {
   // Les rôles des ouvriers au travail dans la session (Claude et ses sous-agents), pour l'animation.
   ouvriers: Role[]
   date: number
+  // L'appel qui attend encore la personne dans cette session, ou null (voir Message).
+  ouvert?: string | null
 }
 
 export const faites = (p: Progression): number => p.etapes.filter(e => e.statut === 'completed').length
@@ -187,7 +218,7 @@ export const lireProgression = (brut: unknown): Progression | null => {
   })
   const ouvriers = p.ouvriers.filter((r): r is Role => ROLES.includes(r as Role)).slice(0, 4)
 
-  return { v: 1, type: 'progression', sessionId: p.sessionId, session: p.session, couleur: p.couleur, titre: p.titre, etapes, ouvriers, date: p.date }
+  return { v: 1, type: 'progression', sessionId: p.sessionId, session: p.session, couleur: p.couleur, titre: p.titre, etapes, ouvriers, date: p.date, ...lireOuvert(p.ouvert) }
 }
 
 // ── La sauvegarde : le PC renvoie le mur du chef et le quartier à un téléphone (nouvelle association, /heho restaurer) ──

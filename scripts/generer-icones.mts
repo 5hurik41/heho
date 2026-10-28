@@ -166,7 +166,7 @@ writeFileSync(new URL('icones/badge-96.png', PUBLIC), png([96, 96], CASQUE_SEUL,
 
 // ── Les ouvriers, un par situation, et l'équipe de la scène (src/equipe.ts) ──
 
-const ROLES: Record<string, Role> = { question: 'thinker', permission: 'foreman', done: 'resting', recap: 'painter', budget: 'mechanic', fond: 'courier', bilan: 'builder' }
+const ROLES: Record<string, Role> = { question: 'thinker', permission: 'foreman', done: 'resting', recap: 'painter', budget: 'mechanic', fond: 'courier', bilan: 'builder', arret: 'signaler' }
 for (const [situation, role] of Object.entries(ROLES)) writeFileSync(new URL(`ouvriers/${situation}.svg`, PUBLIC), svg(ouvrierSerre(role, 1)))
 
 // L'animation de la scène : chaque rôle en deux images, toutes dans la même boîte, les pieds sur la même ligne.

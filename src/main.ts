@@ -6,19 +6,23 @@ import './style.css'
 import { animerScene, carte, CROIX, echapper, horodatage, murDuChef, placerAstres, rafraichirHeures, repeindre, scene } from './chantier'
 import { appliquer, BASCULE, cielActuel, ecrireVille, lireVille, VILLES, type Ville } from './soleil'
 import { CLE_PUBLIQUE_VAPID } from './config'
-import { fermerFeuille, ficheAppel, ficheBatiment, ficheMedaille, ouvrirFeuille, vitrine } from './fiche'
+import { aTraiter, depuis, sansRappels, type ATraiter } from './attente'
+import { fermerFeuille, ficheAppel, ficheBatiment, ficheMedaille, ouvrirFeuille, questionsAppel, vitrine } from './fiche'
 import { MEDAILLES } from './medailles'
 import { filtrer, pastilles, type Filtres } from './filtres'
 import { ecranForfait } from './forfait'
-import { ATTENTES, estFini, LIBELLES, OUVRIER, REGLABLES, TITRES, type Message, type Situation } from './message'
+import { appelDe, ATTENTES, estFini, LIBELLES, OUVRIER, REGLABLES, TITRES, type Message, type Situation } from './message'
 import { chantierFini, ouvrirJeu } from './jeu'
 import { picto } from './pictos'
 import { animerRue, livrer } from './rue'
 import {
   ecrireReglage,
   effacerChantier,
+  ecrireHeuresCalmes,
   effacerMessage,
   lireActivite,
+  lireHeuresCalmes,
+  lireOuverts,
   lireChantiers,
   decernerMedailles,
   lireErreur,
@@ -104,21 +108,54 @@ const montrerCode = (abo: PushSubscription): void => {
 
 // ── Historique ───────────────────────────────────────────────────────────
 
-// Une carte d'appel. Celles qui attendent une réponse portent la rubalise ; une tâche de fond, des pointillés.
-const genre = (s: Situation): string => (ATTENTES.includes(s) ? ' attente' : s === 'fond' || s === 'fond-fini' ? ' fond' : '')
+// Une carte d'appel (BRIEF.md, « À toi »). Celles qui attendent encore portent la rubalise ; celles qui attendaient et
+// sont réglées passent en gris sur une ligne ; une tâche de fond, des pointillés.
+const genre = (s: Situation, ouvert: boolean): string =>
+  ATTENTES.includes(s) ? (ouvert ? ' attente' : ' regle') : s === 'fond' || s === 'fond-fini' ? ' fond' : ''
+
+// Le verbe de chaque genre d'appel qui attend la personne, sur sa couleur (style.css, .t-question…).
+const VERBES: Partial<Record<Situation, string>> = { question: 'Répondre', permission: 'Autoriser', recap: 'Choisir', done: 'La suite', arret: 'Vérifier' }
+
+const rappelsDe = (n: number): string => (n ? ` · ${n} rappel${n > 1 ? 's' : ''}` : '')
+
+// Le bloc « À toi », en haut de l'historique : une carte par session qui attend, la plus ancienne d'abord.
+const blocAToi = (liste: ATraiter[]): string =>
+  liste.length
+    ? `
+    <section class="a-toi" aria-labelledby="titre-a-toi">
+      <h2 id="titre-a-toi">À toi <span class="compte">${liste.length}</span></h2>
+      ${liste
+        .map(
+          ({ message: m, depuis: d, rappels }) => `
+        <article class="appel-ouvert t-${m.situation}" data-fiche="${echapper(m.id)}" tabindex="0" aria-haspopup="dialog">
+          <div class="vignette" style="background:${m.couleur}"><img src="./ouvriers/${OUVRIER[m.situation]}.svg" alt=""></div>
+          <div class="corps">
+            <div class="meta">
+              <span class="verbe">${VERBES[m.situation] ?? LIBELLES[m.situation]}</span>
+              <span class="badge" style="background:${m.couleur}">${echapper(m.session)}</span>
+              <time class="attend" data-depuis="${d}">${depuis(d)}</time>
+            </div>
+            <p class="texte">${echapper(m.texte)}${rappelsDe(rappels)}</p>
+            ${questionsAppel(m)}
+          </div>
+        </article>`,
+        )
+        .join('')}
+    </section>`
+    : ''
 
 // Toute la carte ouvre la fiche de l'appel ; la croix, elle, efface.
-const ligne = (m: Message): string => `
-  <article class="ligne${genre(m.situation)}" data-fiche="${echapper(m.id)}" tabindex="0" aria-haspopup="dialog">
+const ligne = ({ message: m, rappels }: { message: Message; rappels: number }, ouverts: Set<string>): string => `
+  <article class="ligne${genre(m.situation, ouverts.has(appelDe(m)))}" data-fiche="${echapper(m.id)}" tabindex="0" aria-haspopup="dialog">
     <div class="vignette" style="background:${m.couleur}"><img src="./ouvriers/${OUVRIER[m.situation]}.svg" alt="">${picto(m.situation)}</div>
     <div class="corps">
       <div class="meta">
         <span class="badge" style="background:${m.couleur}">${echapper(m.session)}</span>
-        <span class="situation">${LIBELLES[m.situation]}</span>
+        <span class="situation">${LIBELLES[m.situation]}${ATTENTES.includes(m.situation) && !ouverts.has(appelDe(m)) ? ' · réglé' : ''}</span>
         ${horodatage(m.date)}
         <button class="effacer" type="button" data-message="${echapper(m.id)}" aria-label="Effacer cet appel">${CROIX}</button>
       </div>
-      <p class="texte">${echapper(m.texte)}${m.rappel ? ` · rappel ${m.rappel}/3` : ''}</p>
+      <p class="texte">${echapper(m.texte)}${rappelsDe(rappels)}</p>
     </div>
   </article>`
 
@@ -182,17 +219,21 @@ const ouvrirFiltres = (messages: Message[]): void => {
 }
 
 const historique = async (): Promise<void> => {
-  const [messages, chantiers, activite, quartier, obtenues] = await Promise.all([lireHistorique(), lireChantiers(), lireActivite(), lireQuartier(), lireMedailles()])
+  const [messages, chantiers, activite, quartier, obtenues, etats] = await Promise.all([lireHistorique(), lireChantiers(), lireActivite(), lireQuartier(), lireMedailles(), lireOuverts()])
   const affiches = filtrer(messages, filtres)
   const isFiltre = affiches.length !== messages.length
+  const aToi = aTraiter(messages, etats, chantiers)
+  const ouverts = new Set(aToi.map(a => appelDe(a.message)))
+  montrerCompte(aToi.length)
   ecran.innerHTML = `
+    ${blocAToi(aToi)}
     ${scene(chantiers, quartier)}
     ${murDuChef(activite)}
     ${vitrine(obtenues)}
     ${
       messages.length
         ? `${teteListe(messages)}
-           ${affiches.length ? affiches.map(ligne).join('') : `<p class="aide">Aucun appel pour ces filtres.</p>`}
+           ${affiches.length ? sansRappels(affiches).map(x => ligne(x, ouverts)).join('') : `<p class="aide">Aucun appel pour ces filtres.</p>`}
            ${isFiltre ? '' : `<button class="bouton second" id="vider" type="button">Tout effacer</button>`}`
         : `<h2>Rien pour l'instant</h2><p class="aide">Les appels du PC s'afficheront ici, même hors ligne.</p>`
     }`
@@ -318,12 +359,23 @@ const reglages = async (): Promise<void> => {
         </div>`
     }),
   )
+  const calme = await lireHeuresCalmes()
+  const heure = (m: number) => `${String(Math.floor(m / 60)).padStart(2, '0')}:${String(m % 60).padStart(2, '0')}`
   const ville = lireVille()
   const connue = VILLES.find(v => v.nom === ville.nom)
   const libre = !connue && ville.nom === LIEU_LIBRE
   ecran.innerHTML = `
     <h2>Réglages</h2>
     ${lignes.join('')}
+    <section class="reglage-calme">
+      <h3>Heures calmes</h3>
+      <p class="aide">Dans cette plage, seules les permissions sonnent ; les autres appels arrivent en silence.</p>
+      <label class="calme-actif"><input type="checkbox" id="calme-actif"${calme.actif ? ' checked' : ''}>Activer</label>
+      <div class="calme-plage">
+        <label>De<input type="time" id="calme-debut" value="${heure(calme.debut)}"></label>
+        <label>à<input type="time" id="calme-fin" value="${heure(calme.fin)}"></label>
+      </div>
+    </section>
     <section class="reglage-ville">
       <h3><label for="ville">La ville du soleil</label></h3>
       <p class="aide">Les couleurs de l'appli suivent la hauteur du soleil dans cette ville.</p>
@@ -367,7 +419,16 @@ const reglages = async (): Promise<void> => {
     if (!(Math.abs(lat) <= 90 && Math.abs(lon) <= 180)) return void (etatSoleil.textContent = 'La latitude va de −90 à 90, la longitude de −180 à 180.')
     changerVille({ nom: LIEU_LIBRE, lat, lon })
   })
-  ecran.querySelectorAll<HTMLInputElement>('input[type=checkbox]').forEach(caseACocher =>
+  const garderCalme = async (): Promise<void> => {
+    const minutes = (id: string) => {
+      const [h, m] = ecran.querySelector<HTMLInputElement>(id)!.value.split(':').map(Number)
+
+      return (h ?? 0) * 60 + (m ?? 0)
+    }
+    await ecrireHeuresCalmes({ actif: ecran.querySelector<HTMLInputElement>('#calme-actif')!.checked, debut: minutes('#calme-debut'), fin: minutes('#calme-fin') })
+  }
+  for (const id of ['#calme-actif', '#calme-debut', '#calme-fin']) ecran.querySelector(id)!.addEventListener('change', () => void garderCalme())
+  ecran.querySelectorAll<HTMLInputElement>('input[type=checkbox][data-s]').forEach(caseACocher =>
     caseACocher.addEventListener('change', async () => {
       const s = caseACocher.dataset.s as Reglable
       const r = await lireReglage(s)
@@ -399,8 +460,21 @@ const reglages = async (): Promise<void> => {
 
 const ECRANS: Record<string, () => Promise<void>> = { accueil, chantiers, historique, forfait, reglages }
 
+// L'onglet Historique compte les appels qui attendent la personne (BRIEF.md, « À toi »).
+const montrerCompte = (n: number): void => {
+  const lien = nav.querySelector<HTMLAnchorElement>('a[href="#historique"]')
+  if (!lien) return
+  lien.innerHTML = n ? `Historique <span class="compte" aria-label="${n} en attente">${n}</span>` : 'Historique'
+}
+
+const compter = async (): Promise<void> => {
+  const [messages, etats, chantiers] = await Promise.all([lireHistorique(), lireOuverts(), lireChantiers()])
+  montrerCompte(aTraiter(messages, etats, chantiers).length)
+}
+
 const afficher = async (): Promise<void> => {
-  const associe = (await abonnementActuel()) !== null
+  // En développement, ?essai montre les écrans sans abonnement push (une page de docs/ remplit le stockage).
+  const associe = (await abonnementActuel()) !== null || (import.meta.env.DEV && location.search.includes('essai'))
   etat.hidden = !associe
   nav.hidden = !associe
   const nom = location.hash.slice(1)
@@ -408,6 +482,7 @@ const afficher = async (): Promise<void> => {
   nav.querySelectorAll('a').forEach(a => a.toggleAttribute('aria-current', a.hash === `#${choix}`))
   nav.querySelectorAll('a[aria-current]').forEach(a => a.setAttribute('aria-current', 'page'))
   await ECRANS[choix]!()
+  if (associe && choix !== 'historique') await compter().catch(() => undefined)
 }
 
 window.addEventListener('hashchange', () => void afficher())
@@ -440,6 +515,7 @@ void enregistrement()
 // Les heures relatives (« il y a 3 min ») avancent tant que l'appli reste ouverte, et le soleil avec elles.
 setInterval(() => {
   rafraichirHeures(ecran)
+  for (const t of ecran.querySelectorAll<HTMLElement>('.attend[data-depuis]')) t.textContent = depuis(Number(t.dataset.depuis))
   appliquer()
   placerAstres(ecran)
   repeindre(ecran)

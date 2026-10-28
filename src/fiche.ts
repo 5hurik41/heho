@@ -2,7 +2,7 @@
 // « Fiches »). C'est un <dialog> : le bouton retour d'Android le ferme, comme un balayage vers le bas.
 import { CROIX, echapper } from './chantier'
 import { MEDAILLES, svgMedaille, type Medaille } from './medailles'
-import { LIBELLES, OUVRIER, TITRES, type Message } from './message'
+import { appelDe, LIBELLES, OUVRIER, TITRES, type Message } from './message'
 import { picto } from './pictos'
 import type { Batiment } from './stockage'
 
@@ -13,7 +13,22 @@ const exacte = (date: number): string =>
   new Date(date).toLocaleString('fr-FR', { weekday: 'long', day: 'numeric', month: 'long', hour: '2-digit', minute: '2-digit' })
 
 // Un appel et ses rappels portent le même id, suivi de -0, -1, -2… (le mod notify-worker).
-export const racineAppel = (id: string): string => id.replace(/-\d+$/, '')
+export const racineAppel = (id: string): string => appelDe({ id })
+
+// Les questions d'un appel et leurs options (BRIEF.md, « Options dans la fiche ») : de quoi choisir avant de revenir
+// au PC. Une question unique qui redit le texte de l'appel ne montre que ses options ; l'option recommandée ressort.
+export const questionsAppel = (m: Message): string =>
+  m.questions?.length
+    ? `<div class="questions">${m.questions
+        .map(
+          q => `
+          <div class="question">
+            ${m.questions!.length > 1 || q.texte !== m.texte ? `<p>${echapper(q.texte)}</p>` : ''}
+            ${q.options.length ? `<ul class="options">${q.options.map(o => `<li${/recommand/i.test(o) ? ' class="recommandee"' : ''}>${echapper(o)}</li>`).join('')}</ul>` : ''}
+          </div>`,
+        )
+        .join('')}</div>`
+    : ''
 
 export const ficheAppel = (m: Message, historique: Message[]): string => {
   const envois = historique.filter(x => racineAppel(x.id) === racineAppel(m.id)).sort((a, b) => a.date - b.date)
@@ -27,6 +42,7 @@ export const ficheAppel = (m: Message, historique: Message[]): string => {
       </div>
     </div>
     <p class="fiche-texte">${echapper(m.texte)}</p>
+    ${questionsAppel(m)}
     <dl class="fiche-faits">
       ${envois
         .map(e => `<div><dt>${e.rappel ? `Rappel ${e.rappel}` : 'Appel'}</dt><dd><time datetime="${new Date(e.date).toISOString()}">${exacte(e.date)}</time></dd></div>`)

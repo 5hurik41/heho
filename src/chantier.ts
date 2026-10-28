@@ -2,6 +2,7 @@
 // sous le ciel de l'heure (src/soleil.ts), la ligne d'horizon des chantiers finis, un bâtiment chacun, et à droite les chantiers en
 // cours, qui montent d'un étage par étape faite. Sous la scène, le mur du chef, une case par jour comme le mur
 // d'activité de GitHub. Un chantier fini s'envole vers la case du jour avant de rejoindre l'horizon.
+import { direFin, finEstimee } from './attente'
 import { BOITE } from './equipe'
 import { enCours, estFini, faites, type Role } from './message'
 import {
@@ -82,6 +83,13 @@ const ETAGES_VUS = 'heho-etages-vus'
 const BATIMENTS_VUS = 'heho-batiments-vus'
 const ENVOLS_VUS = 'heho-envols-vus'
 const JOUR_VU = 'heho-jour-vu'
+
+// « · fin vers 14 h 20 » pour un chantier en cours qui a déjà fait une étape (BRIEF.md, « Fin estimée »).
+const fin = (c: Chantier): string => {
+  const f = estFini(c) ? null : finEstimee(c)
+
+  return f ? ` · ${direFin(f)}` : ''
+}
 
 // ── Le quartier (BRIEF.md, « Refonte graphique ») ────────────────────────
 // Tout est dessiné au pixel par src/pixels.ts, en images posées à leur place dans la rue. Chaque image garde sa
@@ -313,7 +321,7 @@ export const scene = (chantiers: Chantier[], quartier: Batiment[]): string => {
           const etape = enCours(c)
 
           return `<span class="badge" style="background:${c.couleur}">${echapper(c.session)}</span>
-            ${estFini(c) ? 'Terminé' : `${faites(c)}/${c.etapes.length}`}${enCoursIci.length === 1 && !estFini(c) && etape ? ` · ${echapper(etape)}` : ''}`
+            ${estFini(c) ? 'Terminé' : `${faites(c)}/${c.etapes.length}${fin(c)}`}${enCoursIci.length === 1 && !estFini(c) && etape ? ` · ${echapper(etape)}` : ''}`
         })
         .join('<span class="sep" aria-hidden="true"></span>')
     : quartier.length
@@ -499,7 +507,7 @@ export const carte = (c: Chantier): string => {
     <article class="chantier">
       <div class="meta">
         <span class="badge" style="background:${c.couleur}">${echapper(c.session)}</span>
-        <span class="situation">${estFini(c) ? 'Terminé' : `${faites(c)}/${total}`}</span>
+        <span class="situation">${estFini(c) ? 'Terminé' : `${faites(c)}/${total}${fin(c)}`}</span>
         ${horodatage(c.date)}
         <button class="effacer" type="button" data-chantier="${echapper(c.sessionId)}" aria-label="Retirer ce chantier">${CROIX}</button>
       </div>

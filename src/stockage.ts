@@ -1,5 +1,6 @@
 // L'historique, les chantiers et les réglages, dans IndexedDB : le service worker écrit, l'appli lit, hors ligne compris.
 import { gagnees, MEDAILLES, type Medaille } from './medailles'
+import type { EtatSession } from './attente'
 import { estFini, faites, type Forfait, type Message, type Progression, type Situation } from './message'
 
 const BASE = 'heho'
@@ -26,8 +27,9 @@ const HISTORIQUE_MS = 30 * JOUR_MS
 const CHANTIER_MS = 7 * JOUR_MS
 
 export type Reglage = { son: boolean; vibration: boolean }
-// Un chantier tel que le téléphone le garde : la progression reçue, et l'heure où il a été vu terminé.
-export type Chantier = Progression & { finiA?: number }
+// Un chantier tel que le téléphone le garde : la progression reçue, l'heure où il a été vu terminé, et celle de la
+// première progression de son plan (pour sa fin estimée, BRIEF.md, « Fin estimée »).
+export type Chantier = Progression & { finiA?: number; debut?: number }
 export type Journee = { jour: string; briques: number; murs: number }
 // Un bâtiment du quartier : un chantier fini, autant d'étages que d'étapes. `etapes`, le texte de chacune pour sa
 // fiche, n'existe que pour ceux vus finir sur ce téléphone : la sauvegarde du PC ne les porte pas (un push pèse 4 Ko).
@@ -175,6 +177,51 @@ export const ecrireReglage = async (s: Reglable, r: Reglage): Promise<void> => {
   await attendre(db.transaction(REGLAGES, 'readwrite').objectStore(REGLAGES).put(r, s))
 }
 
+// Le dernier `ouvert` reçu de chaque session (BRIEF.md, « Appel ouvert ») : un envoi plus ancien, arrivé en retard,
+// ne remplace pas un plus récent.
+const OUVERTS = 'ouverts'
+
+export const ecrireOuvert = async (sessionId: string, ouvert: string | null, date: number): Promise<void> => {
+  const db = await ouvrir()
+  const store = db.transaction(REGLAGES, 'readwrite').objectStore(REGLAGES)
+  const tous = ((await attendre(store.get(OUVERTS))) as Record<string, EtatSession> | undefined) ?? {}
+  if ((tous[sessionId]?.date ?? -1) > date) return
+  tous[sessionId] = { ouvert, date }
+  // Les sessions muettes depuis 30 jours s'oublient.
+  for (const [id, e] of Object.entries(tous)) if (e.date < date - HISTORIQUE_MS) delete tous[id]
+  await attendre(store.put(tous, OUVERTS))
+}
+
+export const lireOuverts = async (): Promise<Map<string, EtatSession>> => {
+  const db = await ouvrir()
+  const tous = ((await attendre(db.transaction(REGLAGES).objectStore(REGLAGES).get(OUVERTS))) as Record<string, EtatSession> | undefined) ?? {}
+
+  return new Map(Object.entries(tous))
+}
+
+// Les heures calmes (BRIEF.md) : seules les permissions sonnent. Heures en minutes depuis minuit.
+export type HeuresCalmes = { actif: boolean; debut: number; fin: number }
+export const HEURES_CALMES_DEFAUT: HeuresCalmes = { actif: true, debut: 22 * 60, fin: 7 * 60 }
+
+export const lireHeuresCalmes = async (): Promise<HeuresCalmes> => {
+  const db = await ouvrir()
+
+  return ((await attendre(db.transaction(REGLAGES).objectStore(REGLAGES).get('heuresCalmes'))) as HeuresCalmes | undefined) ?? HEURES_CALMES_DEFAUT
+}
+
+export const ecrireHeuresCalmes = async (h: HeuresCalmes): Promise<void> => {
+  const db = await ouvrir()
+  await attendre(db.transaction(REGLAGES, 'readwrite').objectStore(REGLAGES).put(h, 'heuresCalmes'))
+}
+
+// Dans la plage, qui peut passer minuit (22 h à 7 h).
+export const estCalme = (h: HeuresCalmes, date = new Date()): boolean => {
+  if (!h.actif || h.debut === h.fin) return false
+  const m = date.getHours() * 60 + date.getMinutes()
+
+  return h.debut < h.fin ? m >= h.debut && m < h.fin : m >= h.debut || m < h.fin
+}
+
 // La dernière erreur du service worker, que Réglages montre : le téléphone n'a pas de console à lire.
 export const noterErreur = async (texte: string, maintenant = Date.now()): Promise<void> => {
   const db = await ouvrir()
@@ -195,7 +242,7 @@ export const recevoirProgression = async (p: Progression): Promise<void> => {
   const memePlan = avant !== undefined && avant.titre === p.titre
   const briques = Math.max(0, faites(p) - (memePlan ? faites(avant) : 0))
   const vientDeFinir = estFini(p) && !(memePlan && estFini(avant))
-  await ecrireChantier({ ...p, finiA: vientDeFinir ? p.date : memePlan ? avant.finiA : undefined })
+  await ecrireChantier({ ...p, finiA: vientDeFinir ? p.date : memePlan ? avant.finiA : undefined, debut: memePlan ? (avant.debut ?? avant.date) : p.date })
   if (briques || vientDeFinir) await ajouterActivite(jourDe(p.date), briques, vientDeFinir ? 1 : 0)
   // Un mur fini devient un bâtiment du quartier, d'autant d'étages que d'étapes.
   if (vientDeFinir)

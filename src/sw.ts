@@ -7,7 +7,10 @@ import {
   ajouterMessage,
   decernerMedailles,
   ecrireForfait,
+  ecrireOuvert,
+  estCalme,
   fusionnerActivite,
+  lireHeuresCalmes,
   lireHistorique,
   lireReglage,
   nettoyer,
@@ -68,8 +71,10 @@ self.addEventListener('fetch', e => {
 })
 
 const montrer = async (m: Message): Promise<void> => {
-  // Son et vibration selon les réglages de la situation, lancement d'une tâche de fond compris.
-  const reglage = await lireReglage(m.situation)
+  // Son et vibration selon les réglages de la situation, lancement d'une tâche de fond compris. Pendant les heures
+  // calmes, seules les permissions sonnent (BRIEF.md, « Heures calmes »).
+  const calme = m.situation !== 'permission' && estCalme(await lireHeuresCalmes().catch(() => ({ actif: false, debut: 0, fin: 0 })))
+  const reglage = calme ? { son: false, vibration: false } : await lireReglage(m.situation)
   const options: Options = {
     body: m.texte,
     // Le même tag par session : un rappel remplace la notification précédente au lieu de s'empiler. Une tâche de
@@ -136,6 +141,14 @@ const effacerLesTermines = async (sauf?: string): Promise<void> => {
     if ((n.data as { fini?: boolean } | null)?.fini && n.tag !== sauf) n.close()
 }
 
+// L'appel ouvert de la session, que porte chaque envoi (BRIEF.md, « Appel ouvert »). Réglé (null) : sa notification
+// n'a plus rien à dire et quitte le volet.
+const noterOuvert = async (sessionId: string, ouvert: string | null | undefined, date: number, fermer: boolean): Promise<void> => {
+  if (ouvert === undefined) return
+  await ecrireOuvert(sessionId, ouvert, date).catch(() => undefined)
+  if (ouvert === null && fermer) for (const n of await self.registration.getNotifications({ tag: sessionId })) n.close()
+}
+
 const prevenirLesFenetres = async (ecran: string): Promise<void> => {
   for (const client of await self.clients.matchAll({ type: 'window' })) client.postMessage({ type: 'maj', ecran })
 }
@@ -182,6 +195,7 @@ self.addEventListener('push', e => {
     e.waitUntil(
       (async () => {
         await recevoirProgression(p)
+        await noterOuvert(p.sessionId, p.ouvert, p.date, true)
         await nettoyer().catch(() => undefined)
         await effacerLesTermines(`chantier-${p.sessionId}`)
         await montrerProgression(p)
@@ -201,6 +215,7 @@ self.addEventListener('push', e => {
       // la notification de fin : on remontre celle-ci, sans bruit (Chrome veut une notification par push).
       const fin = m.situation === 'fond' && m.tache ? (await lireHistorique()).find(x => x.tache === m.tache && x.situation === 'fond-fini') : undefined
       await ajouterMessage(m)
+      await noterOuvert(m.sessionId, m.ouvert, m.date, false)
       await nettoyer().catch(() => undefined)
       if (fin) await self.registration.showNotification(titre(fin), { body: fin.texte, tag: `fond-${m.tache}`, silent: true, icon: './icones/icone-192.png', badge: './icones/badge-96.png' })
       else await montrer(m)

@@ -11,6 +11,8 @@ const DESSINS: Record<Situation, string[]> = {
   fond: ['........', '.XXXXXX.', 'X..XX..X', 'XXXXXXXX', 'X..XX..X', 'X..XX..X', 'XXXXXXXX', '........'],
   'fond-fini': ['........', '.XXXXXX.', 'X..XX..X', 'XXXXXXXX', 'X..XX..X', 'X..XX..X', 'XXXXXXXX', '........'],
   bilan: ['XXX.XXXX', 'XXX.XXXX', '........', 'X.XXXX.X', 'X.XXXX.X', '........', 'XXX.XXXX', 'XXX.XXXX'],
+  // Un panneau stop : le chantier ne bouge plus.
+  arret: ['..XXXX..', '.XXXXXX.', 'XXXXXXXX', 'X......X', 'XXXXXXXX', '.XXXXXX.', '..XXXX..', '........'],
 }
 
 const svg = (dessin: string[]): string => {
