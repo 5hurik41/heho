@@ -1,9 +1,10 @@
 // Les fiches : toucher un appel ou un bâtiment ouvre sa fiche dans une feuille qui monte du bas (BRIEF.md,
 // « Fiches »). C'est un <dialog> : le bouton retour d'Android le ferme, comme un balayage vers le bas.
-import { CROIX, echapper } from './chantier'
+import { CROIX, echapper, planDuBatiment } from './chantier'
 import { MEDAILLES, svgMedaille, type Medaille } from './medailles'
 import { appelDe, LIBELLES, OUVRIER, TITRES, type Message } from './message'
 import { picto } from './pictos'
+import { decrire } from './pixels'
 import type { Batiment } from './stockage'
 
 // Au-delà de ce glissement vers le bas, la feuille se ferme ; en deçà, elle revient en place.
@@ -58,6 +59,13 @@ export const ficheAppel = (m: Message, historique: Message[], ouvert = false): s
     }`
 }
 
+// Le bâtiment décrit d'après son ADN (BRIEF.md, « Vie du quartier ») : sa façade, sa boutique, ses accessoires.
+const portrait = (b: Batiment): string => {
+  const { titre, details } = decrire(planDuBatiment(b))
+
+  return `<p class="portrait"><strong>${echapper(titre)}</strong>${details.length ? ` · ${echapper(details.join(', '))}` : ''}</p>`
+}
+
 export const ficheBatiment = (b: Batiment): string => `
   <div class="fiche-tete">
     <div>
@@ -66,6 +74,7 @@ export const ficheBatiment = (b: Batiment): string => `
     </div>
   </div>
   <dl class="fiche-faits"><div><dt>Fini</dt><dd><time datetime="${new Date(b.date).toISOString()}">${exacte(b.date)}</time></dd></div></dl>
+  ${portrait(b)}
   ${
     b.etapes?.length
       ? `<ol class="etapes">${b.etapes.map(t => `<li class="completed"><span class="marque" aria-label="faite"></span>${echapper(t)}</li>`).join('')}</ol>`

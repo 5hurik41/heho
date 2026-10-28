@@ -6,9 +6,9 @@ import { direFin, finEstimee } from './attente'
 import { BOITE } from './equipe'
 import { enCours, estFini, faites, type Role } from './message'
 import {
-  batiment,
+  avecAdn,
   chantier,
-  decor,
+  dessinerBatiment,
   ETAGE,
   grue,
   hasard,
@@ -23,9 +23,13 @@ import {
   plancher,
   RDC,
   Toile,
+  type Dessin,
+  type Moment,
   type Palette,
+  type Plan,
 } from './pixels'
-import { ambianceActuelle, cielActuel } from './soleil'
+import { ambianceActuelle, cielActuel, lireVille } from './soleil'
+import { arbre, momentDe } from './vie'
 import { jourDe, type Batiment, type Chantier, type Journee } from './stockage'
 
 // Au-delà, un chantier non terminé est considéré comme abandonné : la scène ne le montre plus.
@@ -108,14 +112,19 @@ type Image = { src: string; w: number; h: number }
 const recettes = new Map<string, (P: Palette) => Toile>()
 const images = new Map<string, Image>()
 
-const paletteDuSoleil = (): { cle: string; P: Palette } => {
+// La palette suit le soleil ; le moment (BRIEF.md, « Vie du quartier ») suit le calendrier et le quart d'heure : la saison,
+// la fête, les rideaux de fer et les horloges. Un changement de l'un ou de l'autre fait repeindre la scène.
+const paletteDuSoleil = (): { cle: string; P: Palette; m: Moment } => {
   const a = ambianceActuelle()
   const nuit = Math.round((a?.nuit ?? 1) * 8) / 8
   const lumieres = a?.lumieres ?? 5
+  const m = momentDe(new Date(), lireVille().lat)
 
-  return { cle: `${nuit}/${lumieres}`, P: palette(nuit, lumieres) }
+  return { cle: `${nuit}/${lumieres}/${m.saison}/${m.fete}/${m.dimanche}/${Math.floor(m.heure * 4)}`, P: palette(nuit, lumieres), m }
 }
 let courante = paletteDuSoleil()
+// La palette et le moment de la scène affichée, pour la vie de la rue (src/rue.ts).
+export const ambianceDeLaScene = (): { cle: string; P: Palette; m: Moment } => courante
 
 // L'image d'une recette, pour la palette du moment ; dessinée une fois par palette.
 const image = (cle: string, recette?: (P: Palette) => Toile): Image => {
@@ -148,6 +157,7 @@ export const repeindre = (racine: ParentNode): void => {
   if (p.cle === courante.cle) return
   courante = p
   images.clear()
+  dessins.clear()
   for (const el of racine.querySelectorAll<HTMLElement>('[data-dessin]')) {
     const cle = el.dataset.dessin!
     if (!recettes.has(cle)) continue
@@ -157,22 +167,41 @@ export const repeindre = (racine: ParentNode): void => {
   racine.querySelector<HTMLElement>('.ciel')?.style.setProperty('--trottoir', courante.P.trottoir)
 }
 
-// Un bâtiment fini : son plan (type, largeur) se tire de son nom, ses étages de ses étapes.
-const planDe = (id: string, etages: number, couleur: string) => planBatiment(id, Math.min(Math.max(etages, 1), ETAGES_MAX), couleur)
+// Un bâtiment fini : son plan (type, largeur) et son ADN se tirent de son nom, ses étages de ses étapes, son âge de sa date.
+const planDe = (id: string, etages: number, couleur: string, date = Date.now()): Plan =>
+  avecAdn(planBatiment(id, Math.min(Math.max(etages, 1), ETAGES_MAX), couleur), Math.max(0, Math.floor((Date.now() - date) / 86_400_000)))
+export const planDuBatiment = (b: Batiment): Plan => planDe(b.id, b.etages, b.couleur, b.date)
+
+// Les bâtiments posés dans la rue, avec leur dessin (fenêtres, portes, cheminées) : la vie du quartier s'y accroche.
+export type Pose = { x: number; plan: Plan; dessin: () => Dessin }
+let poses: Pose[] = []
+export const posesDeLaRue = (): Pose[] => poses
+const dessins = new Map<string, Dessin>()
+const imageBatiment = (cle: string, plan: Plan, x: number): Image => {
+  const i = image(cle, P => {
+    const d = dessinerBatiment(plan, P, courante.m)
+    dessins.set(cle, d)
+
+    return d.toile
+  })
+  poses.push({ x, plan, dessin: () => dessins.get(cle) ?? (image(cle), dessins.get(cle)!) })
+
+  return i
+}
 
 type Rue = { html: string[]; x: number }
 
 const posBatiment = (rue: Rue, b: Batiment, neuf: boolean): void => {
-  const plan = planDe(b.id, b.etages, b.couleur)
+  const plan = planDuBatiment(b)
   const cle = `bat:${b.id}:${plan.etages}`
-  const i = image(cle, P => batiment(plan, P))
+  const i = imageBatiment(cle, plan, rue.x)
   rue.html.push(
     img(cle, i, `bat${neuf ? ' neuf' : ''}`, rue.x, SOL, ` data-batiment="${echapper(b.id)}" role="button" tabindex="0" aria-haspopup="dialog" aria-label="${echapper(b.session)} · ${echapper(b.titre ?? 'Chantier')}, ${b.etages} étages : voir sa fiche"`),
   )
   rue.x += i.w - 2
   // Un arbre de temps en temps sur le trottoir, toujours au même endroit.
   if (hasard(`arbre-${b.id}`)() < 0.2) {
-    const a = image('arbre', P => decor('arbre', P))
+    const a = image('arbre', P => arbre(P, courante.m.saison))
     rue.html.push(img('arbre', a, 'decor', rue.x + 1, PIETONS))
     rue.x += a.w + 2
   }
@@ -194,7 +223,7 @@ const posParcelle = (rue: Rue, c: Chantier, seule: boolean, vus: Record<string, 
   if (fini) {
     // Fini : le bâtiment tel qu'il rejoindra l'horizon, l'équipe au café devant.
     const cle = `bat:${id}:${total}`
-    const i = image(cle, P => batiment(plan, P))
+    const i = imageBatiment(cle, plan, x0)
     morceaux.push(img(cle, i, 'bat', 0, SOL))
     morceaux.push(ouvrier('resting', i.w - 8, PIETONS, 0))
     largeur = i.w + 6
@@ -289,8 +318,9 @@ export const scene = (chantiers: Chantier[], quartier: Batiment[]): string => {
   const vusEtages = lireVu<Record<string, number>>(ETAGES_VUS, {})
   const vusBatiments = new Set(lireVu<string[]>(BATIMENTS_VUS, []))
   const p = paletteDuSoleil()
-  if (p.cle !== courante.cle) images.clear()
+  if (p.cle !== courante.cle) { images.clear(); dessins.clear() }
   courante = p
+  poses = []
 
   // La rue : tout le quartier, du plus ancien au plus récent, puis les chantiers en cours ; elle défile à
   // l'horizontale et s'ouvre sur sa fin (animerScene), les plus récents.

@@ -3,7 +3,7 @@ import '@fontsource/jersey-10'
 import '@fontsource/atkinson-hyperlegible-next/400.css'
 import '@fontsource/atkinson-hyperlegible-next/700.css'
 import './style.css'
-import { animerScene, carte, CROIX, echapper, horodatage, murDuChef, placerAstres, rafraichirHeures, repeindre, scene } from './chantier'
+import { animerScene, carte, chantiersDeLaScene, CROIX, echapper, horodatage, murDuChef, placerAstres, rafraichirHeures, repeindre, scene } from './chantier'
 import { appliquer, BASCULE, cielActuel, ecrireVille, lireVille, VILLES, type Ville } from './soleil'
 import { CLE_PUBLIQUE_VAPID } from './config'
 import { aTraiter, bilanDelais, depuis, dureeReception, retard, sansRappels, type ATraiter } from './attente'
@@ -14,7 +14,7 @@ import { ecranForfait } from './forfait'
 import { appelDe, ATTENTES, estFini, LIBELLES, OUVRIER, REGLABLES, TITRES, type Message, type Situation } from './message'
 import { chantierFini, ouvrirJeu } from './jeu'
 import { picto } from './pictos'
-import { animerRue, livrer } from './rue'
+import { animerRue, annoncer, brancherRue, livrer, rafraichirRue } from './rue'
 import {
   ecrireReglage,
   effacerChantier,
@@ -298,6 +298,12 @@ const historique = async (): Promise<void> => {
   })
   placerAstres(ecran)
   animerRue(ecran)
+  brancherRue(ecran)
+  annoncer(
+    ecran,
+    chantiersDeLaScene(chantiers).map(c => c.sessionId),
+    [...obtenues].map(([id, date]) => ({ titre: MEDAILLES.find(m => m.id === id)?.titre ?? '', date })),
+  )
   if (livreurAttendu) {
     livreurAttendu = false
     livrer(ecran)
@@ -545,6 +551,7 @@ setInterval(() => {
   appliquer()
   placerAstres(ecran)
   repeindre(ecran)
+  rafraichirRue(ecran)
 }, 30_000)
 
 // Une nouvelle version publiée : à chaque retour sur l'appli, le navigateur cherche un nouveau service worker, et

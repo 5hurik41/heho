@@ -302,6 +302,8 @@ html:not([data-lumieres="0"]) .lumiere { opacity: 1; }
 .fiche-texte { font-size: 16px; white-space: pre-wrap; overflow-wrap: anywhere; }
 .fiche-faits { margin: 0; display: flex; flex-direction: column; gap: 4px; padding: 10px 12px; background: var(--asphalte); border-radius: var(--rayon); font-size: 14px; }
 .fiche-faits div { display: flex; gap: 12px; }
+.portrait { margin: 0; font-size: 14px; color: var(--craie-douce); }
+.portrait strong { color: var(--craie); }
 .fiche-faits dt { min-width: 72px; color: var(--craie-douce); font-weight: 700; }
 .fiche-faits dd { margin: 0; }
 
@@ -370,10 +372,50 @@ html:not([data-lumieres="0"]) .lumiere { opacity: 1; }
 @keyframes marcher { from { translate: -40px 0; } to { translate: calc(100cqw + 40px) 0; } }
 @keyframes marcher-gauche { from { translate: calc(100cqw + 40px) 0; } to { translate: -40px 0; } }
 .ciel { container-type: inline-size; }
+
+/* ── La vie du quartier (src/rue.ts ; BRIEF.md, « Vie du quartier ») ── */
+/* Le bus s'arrête au milieu de l'écran, l'ouvrier qu'il dépose repart vers la gauche. */
+.passant.vehicule { z-index: 4; }
+.passant.vehicule .image-2 { animation-duration: 0.3s; }
+.passant.bus { animation-name: bus; }
+@keyframes bus { 0% { translate: -60px 0; } 40%, 56% { translate: calc(50cqw - 25px) 0; } 100% { translate: calc(100cqw + 60px) 0; } }
+.passant.depose { scale: -1 1; animation-name: descendre; }
+@keyframes descendre { from { translate: calc(50cqw + 10px) 0; } to { translate: -40px 0; } }
+.passant.ballon .image-2 { display: none; }
+.passant.ballon img { animation: rebondir 0.45s ease-in infinite alternate; }
+@keyframes rebondir { from { translate: 0 -10px; } to { translate: 0 0; } }
+/* L'avion et les oiseaux passent derrière les bâtiments. */
+.passant.avion, .passant.vol { z-index: 0; }
+.passant.avion .image-2 { animation-duration: 0.3s; }
+.vol > span { position: absolute; width: 7px; height: 3px; }
+.vol .image-2 { animation-duration: 0.35s; }
+.nuages { position: absolute; inset: 0; pointer-events: none; }
+.nuages img { position: absolute; left: 0; image-rendering: pixelated; animation: deriver linear infinite; }
+@keyframes deriver { from { translate: -40px 0; } to { translate: calc(100cqw + 10px) 0; } }
+.chauves-souris { position: absolute; top: 28px; right: 22%; pointer-events: none; }
+.chauves-souris > span { position: absolute; width: 7px; height: 4px; animation: voleter 6s ease-in-out calc(var(--k) * -2s) infinite; }
+.chauves-souris img { position: absolute; inset: 0; image-rendering: pixelated; }
+.chauves-souris .image-2 { animation: alterner 0.25s steps(1) infinite; }
+@keyframes voleter { 0%, 100% { translate: 0 0; } 25% { translate: -38px 12px; } 50% { translate: -10px 26px; } 75% { translate: 26px 8px; } }
+/* Les pigeons picorent sur les toits ; touchés, ils s'envolent et reviennent plus tard. */
+.rue > .pigeon { z-index: 4; cursor: pointer; }
+.pigeon img { position: absolute; inset: 0; }
+.pigeon img:nth-child(n + 3) { display: none; }
+.pigeon .image-2 { animation: alterner 2.6s steps(1) var(--d) infinite; }
+.pigeon.envol { animation: envol 2.4s ease-in forwards; pointer-events: none; }
+.pigeon.envol img:nth-child(-n + 2) { display: none; }
+.pigeon.envol img:nth-child(n + 3) { display: block; }
+.pigeon .vol-2 { animation: alterner 0.2s steps(1) infinite; }
+@keyframes envol { 0% { translate: 0 0; } 90% { opacity: 1; } 100% { translate: 70px -90px; opacity: 0; } }
+.rue > .chat { z-index: 4; cursor: pointer; }
+.rue > .terrasse, .rue > .bulle { z-index: 4; }
+.rue > .bulle { z-index: 5; pointer-events: none; }
+/* Le calque : vie aux fenêtres, fumée, neige, feuilles, feux d'artifice. */
+canvas.calque { position: absolute; inset: 0; z-index: 3; width: 100%; height: 100%; pointer-events: none; image-rendering: pixelated; }
 /* Un chantier en cours se touche : le mini-jeu. */
 .parcelle[role='button'] { cursor: pointer; }
 @media (prefers-reduced-motion: reduce) {
-  .passant .image-2 { animation: none; }
+  .passant .image-2, .vit, .vit * { animation: none; }
 }
 /* Le mini-jeu, dans la feuille du bas (src/jeu.ts). */
 canvas.jeu { align-self: center; height: min(440px, 58dvh); aspect-ratio: 300 / 440; border: 2px solid var(--trait); border-radius: var(--rayon); touch-action: manipulation; cursor: pointer; }
