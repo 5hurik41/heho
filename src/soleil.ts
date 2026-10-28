@@ -91,6 +91,8 @@ export type Ambiance = Palette & {
   etoiles: number
   // La part des fenêtres allumées, en dixièmes.
   lumieres: number
+  // Le voile de la nuit sur les dessins du quartier (src/pixels.ts), de 0 en plein jour à 1.
+  nuit: number
 }
 
 // `matin` : le soleil est à l'est (il monte). Le matin tire vers le rose, le soir vers l'orange.
@@ -116,6 +118,7 @@ export const ambiance = (elevation: number, matin: boolean): Ambiance => {
     cielBas: ciel[1]!,
     etoiles: 1 - doux(entre(elevation, -10, -2)),
     lumieres: Math.round(part * 10),
+    nuit: 1 - doux(entre(elevation, -8, 6)),
   }
 }
 
@@ -170,6 +173,7 @@ export type Ciel = { soleil: Astre; lune: ReturnType<typeof lune> }
 let derniereAmbiance: Ambiance | null = null
 let dernierCiel: Ciel | null = null
 export const cielActuel = (): Ciel | null => dernierCiel
+export const ambianceActuelle = (): Ambiance | null => derniereAmbiance
 
 // Pose les variables CSS de l'ambiance sur la page. La bascule sombre ↔ clair passe par une transition de vue
 // (un fondu) quand le navigateur la connaît.
@@ -196,8 +200,3 @@ export const appliquer = (date = Date.now(), ville = lireVille()): Ciel => {
 
   return dernierCiel
 }
-
-// Les fenêtres : chaque vitre porte un tirage de 0 à 9 (classe l0 à l9) ; `data-lumieres` sur la page dit combien
-// de tirages sont allumés. Les règles sont écrites une fois, ici, plutôt que dix fois dans style.css.
-export const reglesLumieres = (): string =>
-  Array.from({ length: 10 }, (_, n) => `html[data-lumieres="${n + 1}"] .etage i:is(${Array.from({ length: n + 1 }, (_, k) => `.l${k}`).join(',')}){background:var(--lampe)}`).join('\n')

@@ -147,7 +147,9 @@ export const lireMessage = (brut: unknown): Message | null => {
 // ── La progression d'un chantier : le plan de task-steps, envoyé à chaque étape franchie ──
 // Un push de progression porte `type: 'progression'` ; un appel n'a pas de champ `type`.
 
-export const ROLES = ['builder', 'researcher', 'mechanic', 'foreman', 'painter', 'courier', 'thinker', 'resting'] as const
+// Les huit rôles de task-steps, puis les quatre de l'équipe tirée des outils (BRIEF.md) : soudeuse, signaleur,
+// terrassier, maçonne. Leurs dessins sont dans src/equipe.ts.
+export const ROLES = ['builder', 'researcher', 'mechanic', 'foreman', 'painter', 'courier', 'thinker', 'resting', 'welder', 'signaler', 'digger', 'mason'] as const
 export type Role = (typeof ROLES)[number]
 export type Statut = 'pending' | 'in_progress' | 'completed'
 

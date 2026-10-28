@@ -2,8 +2,29 @@
 // sous le ciel de l'heure (src/soleil.ts), la ligne d'horizon des chantiers finis, un bâtiment chacun, et à droite les chantiers en
 // cours, qui montent d'un étage par étape faite. Sous la scène, le mur du chef, une case par jour comme le mur
 // d'activité de GitHub. Un chantier fini s'envole vers la case du jour avant de rejoindre l'horizon.
+import { BOITE } from './equipe'
 import { enCours, estFini, faites, type Role } from './message'
-import { cielActuel } from './soleil'
+import {
+  batiment,
+  chantier,
+  decor,
+  ETAGE,
+  grue,
+  hasard,
+  lampadaire,
+  lointain,
+  MARGE_CHANTIER,
+  palette,
+  palette_briques,
+  palissade,
+  PIED_LAMPE,
+  planBatiment,
+  plancher,
+  RDC,
+  Toile,
+  type Palette,
+} from './pixels'
+import { ambianceActuelle, cielActuel } from './soleil'
 import { jourDe, type Batiment, type Chantier, type Journee } from './stockage'
 
 // Au-delà, un chantier non terminé est considéré comme abandonné : la scène ne le montre plus.
@@ -62,105 +83,165 @@ const BATIMENTS_VUS = 'heho-batiments-vus'
 const ENVOLS_VUS = 'heho-envols-vus'
 const JOUR_VU = 'heho-jour-vu'
 
-// Un tirage stable par bâtiment : sa largeur, sa couleur, son toit et ses fenêtres allumées ne changent pas d'une
-// ouverture à l'autre.
-const graine = (texte: string): (() => number) => {
-  let h = 2166136261
-  for (const c of texte) h = Math.imul(h ^ c.charCodeAt(0), 16777619)
+// ── Le quartier (BRIEF.md, « Refonte graphique ») ────────────────────────
+// Tout est dessiné au pixel par src/pixels.ts, en images posées à leur place dans la rue. Chaque image garde sa
+// recette (data-dessin) : quand le soleil change la palette, repeindre les redessine sans refaire la page.
 
-  return () => {
-    h = Math.imul(h ^ (h >>> 15), 2246822507) ^ Math.imul(h ^ (h >>> 13), 3266489909)
+// Les hauteurs depuis le bas de la scène : la ligne où se posent les bâtiments (le haut du trottoir), celle où les
+// piétons posent les pieds, et le pied des lampadaires.
+const SOL = 15
+const PIETONS = 13
+const LAMPES = 12
+const ENTRE_LAMPES = 96
+// La grue reste sous le haut de la scène (210 px, moins le sol et sa flèche).
+const GRUE_MAX = 178
 
-    return ((h ^= h >>> 16) >>> 0) / 4294967296
+type Image = { src: string; w: number; h: number }
+const recettes = new Map<string, (P: Palette) => Toile>()
+const images = new Map<string, Image>()
+
+const paletteDuSoleil = (): { cle: string; P: Palette } => {
+  const a = ambianceActuelle()
+  const nuit = Math.round((a?.nuit ?? 1) * 8) / 8
+  const lumieres = a?.lumieres ?? 5
+
+  return { cle: `${nuit}/${lumieres}`, P: palette(nuit, lumieres) }
+}
+let courante = paletteDuSoleil()
+
+// L'image d'une recette, pour la palette du moment ; dessinée une fois par palette.
+const image = (cle: string, recette?: (P: Palette) => Toile): Image => {
+  if (recette) recettes.set(cle, recette)
+  let i = images.get(cle)
+  if (!i) {
+    const t = recettes.get(cle)!(courante.P)
+    i = { src: t.url(), w: t.w, h: t.h }
+    images.set(cle, i)
   }
+
+  return i
 }
 
-// ── Le quartier ──────────────────────────────────────────────────────────
+const placer = (x: number, bas: number): string => `left:${x}px;bottom:${bas}px`
+const img = (cle: string, i: Image, classe: string, x: number, bas: number, attributs = '', style = ''): string =>
+  `<img class="${classe}" data-dessin="${echapper(cle)}" src="${i.src}" width="${i.w}" height="${i.h}" style="${placer(x, bas)}${style}" alt=""${attributs}>`
 
-const FACADES = ['#3A3C40', '#34373D', '#2F3237', '#3D3A36']
-const TOITS = ['plat', 'antenne', 'citerne', 'pignon'] as const
-
-// `tirage` : 0 à 9 par vitre ; le soleil décide combien de tirages s'allument (reglesLumieres, src/soleil.ts).
-type Facade = { largeur: number; fond: string; toit: (typeof TOITS)[number]; colonnes: number; tirage: (etage: number, col: number) => number; scintille: (etage: number, col: number) => boolean }
-
-const facade = (id: string): Facade => {
-  const r = graine(id)
-  const largeur = [22, 26, 30][Math.floor(r() * 3)]!
-  const fond = FACADES[Math.floor(r() * FACADES.length)]!
-  const toit = TOITS[Math.floor(r() * TOITS.length)]!
-  const tirages = Array.from({ length: ETAGES_MAX * 3 }, () => r())
-
-  return {
-    largeur,
-    fond,
-    toit,
-    colonnes: largeur >= 30 ? 3 : 2,
-    tirage: (e, c) => Math.floor(tirages[e * 3 + c]! * 10),
-    scintille: (e, c) => tirages[e * 3 + c]! < 0.06,
-  }
-}
-
-const fenetres = (f: Facade, etages: number, construits: number, nouveauxDes: number): string =>
-  Array.from({ length: etages }, (_, i) => {
-    // Les étages se lisent du haut vers le bas ; i = 0 est le dernier étage.
-    const etage = etages - 1 - i
-    if (etage >= construits) return `<span class="etage vide"></span>`
-    const vitres = Array.from({ length: f.colonnes }, (_, c) =>
-      `<i class="l${f.tirage(etage, c)}${f.scintille(etage, c) ? ' scintille' : ''}"></i>`,
-    ).join('')
-
-    return `<span class="etage${etage >= nouveauxDes ? ' nouveau' : ''}" style="animation-delay:${(etage - nouveauxDes) * 180}ms">${vitres}</span>`
-  }).join('')
-
-// Un bâtiment fini de l'horizon. `neuf` : il vient d'arriver, il s'élève.
-const batiment = (b: Batiment, neuf: boolean): string => {
-  const f = facade(b.id)
-  const etages = Math.min(Math.max(b.etages, 1), ETAGES_MAX)
-
-  return `
-    <div class="bat toit-${f.toit}${neuf ? ' neuf' : ''}" style="width:${f.largeur}px;--fond:${f.fond};--badge:${b.couleur}" data-batiment="${echapper(b.id)}" role="button" tabindex="0" aria-haspopup="dialog" aria-label="${echapper(b.session)} · ${echapper(b.titre ?? 'Chantier')}, ${b.etages} étages : voir sa fiche">
-      ${fenetres(f, etages, etages, etages)}
-    </div>`
-}
-
-const ouvrier = (role: Role, i: number): string => `
-  <span class="ouvrier">
+// Un ouvrier, le corps commençant en x, les semelles sur la ligne `pieds` (depuis le bas de la scène).
+const basOuvrier = (pieds: number): number => pieds - (BOITE.hauteur - 1 - BOITE.pieds)
+const ouvrier = (role: Role, x: number, pieds: number, i: number, attributs = ''): string => `
+  <span class="ouvrier" style="${placer(x - BOITE.corpsX, basOuvrier(pieds))};width:${BOITE.largeur}px;height:${BOITE.hauteur}px"${attributs}>
     <img src="./ouvriers/roles/${role}-0.svg" alt="">
     <img class="image-2" src="./ouvriers/roles/${role}-1.svg" alt="" style="animation-delay:${i * -0.3}s">
   </span>`
 
-// Une parcelle en chantier : le bâtiment monte d'un étage par étape faite, l'échafaudage marque ceux qui restent.
-// La grue de la planche (docs/bloc3.html) : sa flèche pivote lentement, son crochet se balance.
-const GRUE = `
-  <svg class="grue" width="58" height="92" viewBox="0 0 96 150" shape-rendering="crispEdges" aria-hidden="true">
-    <rect x="10" y="6" width="6" height="144" fill="#F5C542"/>
-    ${[14, 40, 66, 92, 118].map(y => `<rect x="10" y="${y}" width="6" height="2" fill="#B8901F"/>`).join('')}
-    <g class="fleche"><rect x="0" y="4" width="92" height="5" fill="#F5C542"/><rect x="0" y="9" width="10" height="6" fill="#5E606A"/>
-      <g class="crochet"><rect x="73" y="9" width="1" height="46" fill="#8C8F96"/><rect x="70" y="55" width="8" height="4" fill="#FF7A2F"/><rect x="69" y="59" width="10" height="6" fill="#C9962B"/></g></g>
-    <rect x="6" y="0" width="14" height="6" fill="#26282B"/>
-  </svg>`
+// Quand le soleil a changé la palette : chaque image est redessinée d'après sa recette, à sa place.
+export const repeindre = (racine: ParentNode): void => {
+  const p = paletteDuSoleil()
+  if (p.cle === courante.cle) return
+  courante = p
+  images.clear()
+  for (const el of racine.querySelectorAll<HTMLElement>('[data-dessin]')) {
+    const cle = el.dataset.dessin!
+    if (!recettes.has(cle)) continue
+    if (el instanceof HTMLImageElement) el.src = image(cle).src
+    else el.style.backgroundImage = `url(${image(cle).src})`
+  }
+  racine.querySelector<HTMLElement>('.ciel')?.style.setProperty('--trottoir', courante.P.trottoir)
+}
 
-// `grue` : le premier chantier en cours de la scène a la sienne. Toucher un chantier en cours ouvre le mini-jeu.
-const parcelle = (c: Chantier, seule: boolean, vus: Record<string, number>, grue: boolean): string => {
+// Un bâtiment fini : son plan (type, largeur) se tire de son nom, ses étages de ses étapes.
+const planDe = (id: string, etages: number, couleur: string) => planBatiment(id, Math.min(Math.max(etages, 1), ETAGES_MAX), couleur)
+
+type Rue = { html: string[]; x: number }
+
+const posBatiment = (rue: Rue, b: Batiment, neuf: boolean): void => {
+  const plan = planDe(b.id, b.etages, b.couleur)
+  const cle = `bat:${b.id}:${plan.etages}`
+  const i = image(cle, P => batiment(plan, P))
+  rue.html.push(
+    img(cle, i, `bat${neuf ? ' neuf' : ''}`, rue.x, SOL, ` data-batiment="${echapper(b.id)}" role="button" tabindex="0" aria-haspopup="dialog" aria-label="${echapper(b.session)} · ${echapper(b.titre ?? 'Chantier')}, ${b.etages} étages : voir sa fiche"`),
+  )
+  rue.x += i.w - 2
+  // Un arbre de temps en temps sur le trottoir, toujours au même endroit.
+  if (hasard(`arbre-${b.id}`)() < 0.2) {
+    const a = image('arbre', P => decor('arbre', P))
+    rue.html.push(img('arbre', a, 'decor', rue.x + 1, PIETONS))
+    rue.x += a.w + 2
+  }
+}
+
+// Une parcelle en chantier : le gros œuvre monte d'un étage par étape faite, sous son échafaudage, derrière la
+// palissade au badge de la session. `grue` : le premier chantier en cours a la sienne, qui livre chaque étage.
+const posParcelle = (rue: Rue, c: Chantier, seule: boolean, vus: Record<string, number>, avecGrue: boolean): void => {
   const id = c.finiA !== undefined ? `${c.sessionId}:${c.finiA}` : c.sessionId
-  const f = facade(id)
   const total = Math.min(Math.max(c.etapes.length, 1), ETAGES_MAX)
   const construits = Math.min(total, Math.round((faites(c) / Math.max(c.etapes.length, 1)) * total))
+  const vu = Math.min(vus[c.sessionId] ?? construits, construits)
   const fini = estFini(c)
-  const equipe: Role[] = fini ? ['resting'] : (c.ouvriers.length ? c.ouvriers : (['builder'] as Role[])).slice(0, seule ? 2 : 1)
-  const envol = fini && c.finiA !== undefined ? ` data-envol="${echapper(id)}"` : ''
+  const plan = planDe(id, total, c.couleur)
+  const morceaux: string[] = []
+  const x0 = rue.x
+  let largeur: number
 
-  return `
-    <div class="parcelle${fini ? ' fini' : ''}" data-session="${echapper(c.sessionId)}" data-construits="${construits}"${envol}${
+  if (fini) {
+    // Fini : le bâtiment tel qu'il rejoindra l'horizon, l'équipe au café devant.
+    const cle = `bat:${id}:${total}`
+    const i = image(cle, P => batiment(plan, P))
+    morceaux.push(img(cle, i, 'bat', 0, SOL))
+    morceaux.push(ouvrier('resting', i.w - 8, PIETONS, 0))
+    largeur = i.w + 6
+  } else {
+    const dessin = (n: number) => (P: Palette) => chantier({ id, etages: total, construits: n, largeur: plan.largeur, badge: c.couleur }, P)
+    const cle = `chantier:${id}:${total}:${construits}`
+    const i = image(cle, dessin(construits))
+    // Un étage fait depuis la dernière visite : l'image d'avant, que animerScene remplace après la livraison.
+    const avant = vu < construits ? image(`chantier:${id}:${total}:${vu}`, dessin(vu)) : i
+    morceaux.push(`<img class="bat" data-dessin="${echapper(cle)}" src="${avant.src}" width="${i.w}" height="${i.h}" style="${placer(0, SOL)}" alt="">`)
+    const p = image(`palissade:${id}`, P => palissade(P, plan.largeur + 4, c.couleur, c.session))
+    morceaux.push(img(`palissade:${id}`, p, 'palissade', MARGE_CHANTIER - 3, SOL - 1))
+    // L'équipe : la première sur le dernier plancher fait, les autres au pied de la palissade.
+    const equipe: Role[] = (c.ouvriers.length ? c.ouvriers : (['builder'] as Role[])).slice(0, seule ? 3 : 2)
+    equipe.forEach((r, k) => {
+      if (k === 0 && construits > 0)
+        morceaux.push(ouvrier(r, MARGE_CHANTIER + 3, SOL + plancher(vu), k, ` data-pieds-apres="${basOuvrier(SOL + plancher(construits))}"`))
+      else morceaux.push(ouvrier(r, (k === 0 ? 2 : 4) + 16 * k, PIETONS, k))
+    })
+    largeur = i.w
+    if (avecGrue) {
+      // La grue, le mât à droite du chantier, la flèche tournée vers lui ; le chariot au-dessus de son milieu.
+      const hauteur = Math.min(GRUE_MAX, RDC + (total - 1) * ETAGE + 34)
+      const portee = Math.round(i.w / 2) + 3
+      const cleGrue = `grue:${hauteur}:${portee}`
+      const g = image(cleGrue, P => {
+        const brute = grue(P, hauteur, 96, 30, portee).toile
+        const t = new Toile(brute.w, brute.h)
+        t.coller(brute, 0, 0, true)
+
+        return t
+      })
+      const mesures = grue(courante.P, hauteur, 96, 30, portee)
+      const mat = x0 + i.w + 4
+      const gauche = mat - (g.w - 1 - (mesures.pied + 3))
+      rue.html.push(img(cleGrue, g, 'grue', gauche, SOL - 2))
+      // La livraison : du dessous de la flèche jusqu'au dernier plancher fait, moins la hauteur de la palette.
+      const haut = SOL - 2 + (g.h - 1 - (mesures.sousFleche + 1))
+      const pal = image('palette', P => palette_briques(P))
+      const descente = Math.max(12, haut - (SOL + plancher(vu)) - pal.h)
+      rue.html.push(`
+        <span class="livraison" data-session="${echapper(c.sessionId)}" style="${placer(mat - portee - 1, haut)};--d:${descente}px">
+          <span class="cable"></span><img class="charge" data-dessin="palette" src="${pal.src}" width="${pal.w}" height="${pal.h}" alt=""><span class="crochet"></span>
+        </span>`)
+      largeur = i.w + 40
+    }
+  }
+
+  const envol = fini && c.finiA !== undefined ? ` data-envol="${echapper(id)}"` : ''
+  const livrer = !fini && vu < construits ? ' data-livrer' : ''
+  rue.html.push(`
+    <div class="parcelle${fini ? ' fini' : ''}" data-session="${echapper(c.sessionId)}" data-construits="${construits}"${envol}${livrer} style="${placer(x0, 0)};width:${largeur}px"${
       fini ? '' : ` role="button" tabindex="0" aria-haspopup="dialog" aria-label="${echapper(c.session)} en chantier : empiler des briques en attendant"`
-    }>
-      ${grue && !fini ? GRUE : ''}
-      <div class="equipe">${equipe.map(ouvrier).join('')}</div>
-      <div class="bat chantier-bat toit-${fini ? f.toit : 'plat'}" style="width:${f.largeur}px;--fond:${f.fond};--badge:${c.couleur}">
-        ${fini ? '' : `<span class="fanion" style="background:${c.couleur}"></span>`}
-        ${fenetres(f, total, construits, Math.min(vus[c.sessionId] ?? construits, construits))}
-      </div>
-    </div>`
+    }>${morceaux.join('')}</div>`)
+  rue.x += largeur + 8
 }
 
 const estFiniRecemment = (c: Chantier): boolean => estFini(c) && c.finiA !== undefined && Date.now() - c.finiA < FINI_MS
@@ -170,7 +251,7 @@ export const chantiersDeLaScene = (chantiers: Chantier[]): Chantier[] =>
 
 // Les étoiles s'effacent avec le jour (--etoiles, src/soleil.ts) ; chacune scintille à son rythme.
 const ETOILES = `<span class="etoiles" aria-hidden="true">${Array.from({ length: 14 }, (_, i) => {
-  const r = graine(`etoile-${i}`)
+  const r = hasard(`etoile-${i}`)
 
   return `<i style="left:${(r() * 96).toFixed(1)}%;top:${(r() * 55).toFixed(1)}%;animation-delay:${(r() * -4).toFixed(2)}s"></i>`
 }).join('')}</span>`
@@ -199,11 +280,32 @@ export const scene = (chantiers: Chantier[], quartier: Batiment[]): string => {
   const surSaParcelle = new Set(enCoursIci.filter(c => c.finiA !== undefined).map(c => `${c.sessionId}:${c.finiA}`))
   const vusEtages = lireVu<Record<string, number>>(ETAGES_VUS, {})
   const vusBatiments = new Set(lireVu<string[]>(BATIMENTS_VUS, []))
+  const p = paletteDuSoleil()
+  if (p.cle !== courante.cle) images.clear()
+  courante = p
 
   // La rue : tout le quartier, du plus ancien au plus récent, puis les chantiers en cours ; elle défile à
   // l'horizontale et s'ouvre sur sa fin (animerScene), les plus récents.
   const visibles = quartier.filter(b => !surSaParcelle.has(b.id))
   const premiereVisite = vusBatiments.size === 0
+  const rue: Rue = { html: [], x: 10 }
+  for (const b of visibles) posBatiment(rue, b, !premiereVisite && !vusBatiments.has(b.id))
+  if (!visibles.length && !enCoursIci.length) {
+    rue.html.push(ouvrier('resting', rue.x + 20, PIETONS, 0))
+    rue.x += 60
+  }
+  if (enCoursIci.length) rue.x += 14
+  const premier = enCoursIci.find(x => !estFini(x))
+  for (const c of enCoursIci) posParcelle(rue, c, enCoursIci.length === 1, vusEtages, c === premier)
+  const largeur = rue.x + 10
+  // Les lampadaires, éteints, et leur lumière par-dessus : elle s'allume au coucher, de gauche à droite (style.css).
+  const lampe = image('lampe', P => lampadaire(P, false))
+  const lumiere = image('lumiere', P => lampadaire(P, true))
+  for (let x = 40, k = 0; x < largeur; x += ENTRE_LAMPES, k++) {
+    rue.html.push(img('lampe', lampe, 'lampe', x - PIED_LAMPE - 1, LAMPES))
+    rue.html.push(img('lumiere', lumiere, 'lumiere', x - PIED_LAMPE - 1, LAMPES, '', `;--i:${k}`))
+  }
+  const loin = image('lointain', P => lointain(P))
 
   const legende = enCoursIci.length
     ? enCoursIci
@@ -221,16 +323,13 @@ export const scene = (chantiers: Chantier[], quartier: Batiment[]): string => {
   // La scène n'est plus un lien : on y fait glisser la rue du doigt. Le lien vers les chantiers est dans la légende.
   return `
     <section class="scene" aria-label="Le quartier. ${quartier.length} bâtiments finis, ${enCoursIci.length} chantiers en cours">
-      <div class="ciel">
+      <div class="ciel" style="--trottoir:${courante.P.trottoir}">
         ${ETOILES}<span class="astre soleil" aria-hidden="true" hidden></span><span class="astre lune" aria-hidden="true" hidden></span>
+        <div class="lointain" data-dessin="lointain" style="background-image:url(${loin.src})" aria-hidden="true"></div>
         <button class="defiler gauche" type="button" data-sens="-1" aria-label="Voir les bâtiments plus anciens" hidden>${CHEVRON}</button>
         <button class="defiler droite" type="button" data-sens="1" aria-label="Revenir aux plus récents" hidden>${CHEVRON}</button>
         <div class="horizon" tabindex="0" aria-label="La rue du quartier, à faire défiler">
-          <div class="rue">
-            ${visibles.map(b => batiment(b, !premiereVisite && !vusBatiments.has(b.id))).join('')}
-            ${visibles.length || enCoursIci.length ? '' : `<div class="parcelle"><div class="equipe">${ouvrier('resting', 0)}</div></div>`}
-            <div class="chantiers">${enCoursIci.map(c => parcelle(c, enCoursIci.length === 1, vusEtages, c === enCoursIci.find(x => !estFini(x)))).join('')}</div>
-          </div>
+          <div class="rue" style="width:${largeur}px">${rue.html.join('')}</div>
         </div>
       </div>
       <p class="legende">${legende}<a class="vers-chantiers" href="#chantiers">Chantiers ›</a></p>
@@ -340,6 +439,23 @@ const brancherDefilement = (racine: HTMLElement): void => {
   montrer()
 }
 
+// Un étage fait depuis la dernière visite : la grue descend sa palette sur le dernier plancher, puis l'étage paraît
+// et l'ouvrier du plancher monte d'un étage. Sans grue (un deuxième chantier), l'étage paraît simplement.
+const livrer = async (racine: HTMLElement, p: HTMLElement): Promise<void> => {
+  const img = p.querySelector<HTMLImageElement>('img.bat')
+  if (!img) return
+  const calme = matchMedia('(prefers-reduced-motion: reduce)').matches
+  const grue = [...racine.querySelectorAll<HTMLElement>('.livraison')].find(l => l.dataset.session === p.dataset.session)
+  if (grue && !calme) {
+    grue.classList.add('livre')
+    await new Promise(r => setTimeout(r, 1300))
+  }
+  img.src = image(img.dataset.dessin!).src
+  for (const o of p.querySelectorAll<HTMLElement>('[data-pieds-apres]')) o.style.bottom = `${o.dataset.piedsApres}px`
+  if (grue && !calme) await new Promise(r => setTimeout(r, 1200))
+  grue?.classList.remove('livre')
+}
+
 export const animerScene = async (racine: HTMLElement, quartier: Batiment[]): Promise<void> => {
   brancherDefilement(racine)
   const vusEtages = lireVu<Record<string, number>>(ETAGES_VUS, {})
@@ -357,13 +473,15 @@ export const animerScene = async (racine: HTMLElement, quartier: Batiment[]): Pr
   // Tout le quartier connu est désormais « vu » : un bâtiment ne s'élève qu'une fois.
   noterVu(BATIMENTS_VUS, quartier.map(b => b.id).slice(-80))
 
+  await Promise.all([...racine.querySelectorAll<HTMLElement>('.parcelle[data-livrer]')].map(p => livrer(racine, p)))
+
   for (const p of racine.querySelectorAll<HTMLElement>('.parcelle[data-envol]')) {
     const envol = p.dataset.envol!
     const source = p.querySelector<HTMLElement>('.bat')
     if (envols.includes(envol) || !cible || !source) continue
     noterVu(ENVOLS_VUS, [...envols, envol].slice(-50))
     envols.push(envol)
-    // Le temps de voir le dernier étage s'allumer, puis le bâtiment part.
+    // Le temps de voir le bâtiment fini, puis il part.
     await new Promise(r => setTimeout(r, 900))
     await envoler(source, cible)
   }

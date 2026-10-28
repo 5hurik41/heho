@@ -3,8 +3,8 @@ import '@fontsource/jersey-10'
 import '@fontsource/atkinson-hyperlegible-next/400.css'
 import '@fontsource/atkinson-hyperlegible-next/700.css'
 import './style.css'
-import { animerScene, carte, CROIX, echapper, horodatage, murDuChef, placerAstres, rafraichirHeures, scene } from './chantier'
-import { appliquer, BASCULE, cielActuel, ecrireVille, lireVille, reglesLumieres, VILLES, type Ville } from './soleil'
+import { animerScene, carte, CROIX, echapper, horodatage, murDuChef, placerAstres, rafraichirHeures, repeindre, scene } from './chantier'
+import { appliquer, BASCULE, cielActuel, ecrireVille, lireVille, VILLES, type Ville } from './soleil'
 import { CLE_PUBLIQUE_VAPID } from './config'
 import { fermerFeuille, ficheAppel, ficheBatiment, ficheMedaille, ouvrirFeuille, vitrine } from './fiche'
 import { MEDAILLES } from './medailles'
@@ -37,8 +37,7 @@ declare const __CONSTRUIT__: string
 
 const ecran = document.querySelector<HTMLElement>('#ecran')!
 
-// Les couleurs du soleil avant le premier affichage, et les règles des fenêtres allumées.
-document.head.insertAdjacentHTML('beforeend', `<style>${reglesLumieres()}</style>`)
+// Les couleurs du soleil avant le premier affichage.
 appliquer()
 const nav = document.querySelector<HTMLElement>('#nav')!
 const etat = document.querySelector<HTMLElement>('#etat')!
@@ -443,6 +442,7 @@ setInterval(() => {
   rafraichirHeures(ecran)
   appliquer()
   placerAstres(ecran)
+  repeindre(ecran)
 }, 30_000)
 
 // Une nouvelle version publiée : à chaque retour sur l'appli, le navigateur cherche un nouveau service worker, et

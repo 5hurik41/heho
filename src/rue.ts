@@ -1,9 +1,12 @@
 // La vie dans la rue (BRIEF.md, « La suite », bloc 3 ; planche docs/bloc3.html) : un passant de temps en temps, plus
 // rare la nuit ; le livreur quand un appel arrive. Rien quand le téléphone demande moins de mouvement, ni quand
 // l'appli est cachée.
+import { BOITE } from './equipe'
 import type { Role } from './message'
 
-const PASSANTS: Role[] = ['researcher', 'painter', 'thinker', 'mechanic', 'builder']
+const PASSANTS: Role[] = ['researcher', 'painter', 'thinker', 'mechanic', 'builder', 'mason', 'digger', 'welder']
+// Les pieds sur le trottoir, à la ligne des ouvriers de la scène (src/chantier.ts, PIETONS).
+const PIETONS = 13
 // Entre deux passants, de une à deux minutes.
 const ATTENTE_MS: [number, number] = [60_000, 120_000]
 
@@ -16,6 +19,7 @@ const traverser = (ciel: HTMLElement, role: Role, duree: number): void => {
   p.className = `passant${gauche ? ' vers-gauche' : ''}`
   p.setAttribute('aria-hidden', 'true')
   p.style.animationDuration = `${duree}s`
+  Object.assign(p.style, { width: `${BOITE.largeur}px`, height: `${BOITE.hauteur}px`, bottom: `${PIETONS - (BOITE.hauteur - 1 - BOITE.pieds)}px` })
   p.innerHTML = `<img src="./ouvriers/roles/${role}-0.svg" alt=""><img class="image-2" src="./ouvriers/roles/${role}-1.svg" alt="">`
   p.addEventListener('animationend', () => p.remove(), { once: true })
   ciel.append(p)

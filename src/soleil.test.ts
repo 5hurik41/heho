@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'vitest'
-import { ambiance, BASCULE, lune, reglesLumieres, soleil, VILLES } from './soleil'
+import { ambiance, BASCULE, lune, soleil, VILLES } from './soleil'
 
 const PARIS = VILLES.find(v => v.nom === 'Paris')!
 // Le 27 octobre 2026, Paris est à UTC+1.
@@ -60,6 +60,7 @@ describe('l’ambiance', () => {
   test('les fenêtres : éteintes de jour, allumées au crépuscule', () => {
     expect(ambiance(20, false).lumieres).toBe(0)
     expect(ambiance(-6, false).lumieres).toBeGreaterThan(5)
-    expect(reglesLumieres()).toContain('html[data-lumieres="3"] .etage i:is(.l0,.l1,.l2)')
+    expect(ambiance(20, false).nuit).toBe(0)
+    expect(ambiance(-20, false).nuit).toBe(1)
   })
 })

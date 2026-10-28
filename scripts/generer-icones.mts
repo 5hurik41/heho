@@ -1,14 +1,11 @@
 // Génère le logo, les icônes Android et les ouvriers de l'appli dans public/. À relancer si le dessin change :
-//   npm run icones -- [chemin de task-steps/hooks/sprites.ts]
+//   npm run icones
 import { deflateSync } from 'node:zlib'
 import { mkdirSync, writeFileSync } from 'node:fs'
-import { pathToFileURL } from 'node:url'
-import { homedir } from 'node:os'
-import { join } from 'node:path'
 import { grilleMedaille, MEDAILLES } from '../src/medailles.ts'
-import { BADGES, ROLES as ROLES_EQUIPE } from '../src/message.ts'
+import { ouvrierEnBoite, ouvrierSerre } from '../src/equipe.ts'
+import { BADGES, ROLES as ROLES_EQUIPE, type Role } from '../src/message.ts'
 
-const SPRITES = process.argv[2] ?? join(homedir(), '.claude', 'mods-perso', 'task-steps', 'hooks', 'sprites.ts')
 const PUBLIC = new URL('../public/', import.meta.url)
 mkdirSync(new URL('icones/', PUBLIC), { recursive: true })
 mkdirSync(new URL('ouvriers/', PUBLIC), { recursive: true })
@@ -167,65 +164,15 @@ writeFileSync(new URL('logo.svg', PUBLIC), svg(L))
 writeFileSync(new URL('icones/favicon-32.png', PUBLIC), png([32, 32], L, 1, null))
 writeFileSync(new URL('icones/badge-96.png', PUBLIC), png([96, 96], CASQUE_SEUL, 4, null, { teinte: '#FFFFFF' }))
 
-// ── Les ouvriers, un par situation, tirés des sprites de task-steps ──
+// ── Les ouvriers, un par situation, et l'équipe de la scène (src/equipe.ts) ──
 
-const { pixels, hex } = (await import(pathToFileURL(SPRITES).href)) as {
-  pixels: (role: string, frame: number) => (number | null)[][]
-  hex: (rgb: number) => string
-}
-const ROLES = { question: 'thinker', permission: 'foreman', done: 'resting', recap: 'painter', budget: 'mechanic', fond: 'courier', bilan: 'builder' }
+const ROLES: Record<string, Role> = { question: 'thinker', permission: 'foreman', done: 'resting', recap: 'painter', budget: 'mechanic', fond: 'courier', bilan: 'builder' }
+for (const [situation, role] of Object.entries(ROLES)) writeFileSync(new URL(`ouvriers/${situation}.svg`, PUBLIC), svg(ouvrierSerre(role, 1)))
 
-// Les sprites sont en Catppuccin, pour le terminal ; dans Hého ils passent aux couleurs de l'équipe de nuit :
-// casques jaune lampe, gilets orange balise, bleus de travail, et un contour d'encre qui les détache de
-// n'importe quelle couleur de badge.
-const NUIT: Record<string, string> = {
-  // peau, yeux ; bottes, pantalons et cheveux en ardoise, assez clairs pour que le contour d'encre se voie
-  '#f2cdcd': '#E9B48F', '#11111b': ENCRE, '#585b70': '#505664', '#45475a': '#3C404A',
-  // blancs et gris
-  '#cdd6f4': '#F4F1E8', '#a6adc8': '#B9B6AC', '#9399b2': '#8C8F96', '#7f849c': '#9A968C',
-  // jaune et orange : casques, gilets, accents
-  '#f9e2af': '#F5C542', '#df8e1d': '#B8862A', '#fab387': '#FF7A2F',
-  // vert : chercheur, ouvrier au café, coche de la planchette
-  '#a6e3a1': '#6FAF5B', '#40a02b': '#3E7A34',
-  // bleus : mécanicien, pantalon du bâtisseur, verre de la loupe
-  '#89b4fa': '#3366AA', '#1e66f5': '#22477A', '#74c7ec': '#2F7FA8', '#209fb5': '#1F5A78', '#89dceb': '#9FD8F0',
-  // penseur
-  '#b4befe': '#8E8CD8', '#7287fd': '#5E5BB0',
-  // peintre
-  '#f38ba8': '#E0443C', '#d20f39': '#A82A24', '#f5c2e7': '#E879A8',
-  // coursier
-  '#94e2d5': '#3FA89A', '#179299': '#22766C',
-  // chapeau safari et bois des outils : déjà dans le ton
-  '#e5c890': '#D9B97A', '#c6a76d': '#A88A4E', '#b4846c': '#B4846C', '#8a5a44': '#8A5A44',
-}
-
-const recolorer = (c: string): string => {
-  const nuit = NUIT[c.toLowerCase()]
-  if (!nuit) throw new Error(`couleur de sprite sans équivalent dans NUIT : ${c}`)
-
-  return nuit
-}
-
-// Un pixel d'encre autour de chaque pixel dessiné (voisins haut, bas, gauche, droite) ; la grille s'agrandit d'un pixel.
-const contour = (g: Grille): Grille => {
-  const h = g.length + 2
-  const l = g[0]!.length + 2
-  const plein = (x: number, y: number) => g[y - 1]?.[x - 1] != null
-
-  return Array.from({ length: h }, (_, y) =>
-    Array.from({ length: l }, (_, x) =>
-      plein(x, y) ? g[y - 1]![x - 1]! : plein(x - 1, y) || plein(x + 1, y) || plein(x, y - 1) || plein(x, y + 1) ? ENCRE : null,
-    ),
-  )
-}
-
-const ouvrier = (role: string, image = 1): Grille => contour(pixels(role, image).map(l => l.map(c => (c === null ? null : recolorer(hex(c))))))
-for (const [situation, role] of Object.entries(ROLES)) writeFileSync(new URL(`ouvriers/${situation}.svg`, PUBLIC), svg(ouvrier(role)))
-
-// L'animation de chantier : chaque rôle de l'équipe en deux images, qui alternent.
+// L'animation de la scène : chaque rôle en deux images, toutes dans la même boîte, les pieds sur la même ligne.
 mkdirSync(new URL('ouvriers/roles/', PUBLIC), { recursive: true })
 for (const role of ROLES_EQUIPE)
-  for (const image of [0, 1]) writeFileSync(new URL(`ouvriers/roles/${role}-${image}.svg`, PUBLIC), svg(ouvrier(role, image)))
+  for (const image of [0, 1]) writeFileSync(new URL(`ouvriers/roles/${role}-${image}.svg`, PUBLIC), svg(ouvrierEnBoite(role, image)))
 
 // ── Les grandes images des notifications : l'ouvrier sur la couleur du badge, debout sur le marquage au sol ──
 
@@ -239,13 +186,15 @@ const marquage: (poser: Poser) => void = poser => {
   for (let y = h - SOL / 2 - 3; y < h - SOL / 2 + 3; y++) for (let x = 0; x < l; x++) if (x % 48 < 24) poser(x, y, T.Y)
 }
 
+// Le plus grand agrandissement entier, 12 au plus, qui loge l'ouvrier (et sa bulle) au-dessus du sol.
+const agrandissement = (g: Grille): number => Math.min(12, Math.floor((IMAGE[1] - SOL - 8) / g.length))
+
 mkdirSync(new URL('notifications/', PUBLIC), { recursive: true })
-for (const [situation, role] of Object.entries(ROLES))
+for (const [situation, role] of Object.entries(ROLES)) {
+  const g = ouvrierSerre(role, 1)
   for (const badge of BADGES)
-    writeFileSync(
-      new URL(`notifications/${situation}-${badge}.png`, PUBLIC),
-      png(IMAGE, ouvrier(role), 14, `#${badge}`, { decor: marquage, bas: IMAGE[1] - SOL + 4 }),
-    )
+    writeFileSync(new URL(`notifications/${situation}-${badge}.png`, PUBLIC), png(IMAGE, g, agrandissement(g), `#${badge}`, { decor: marquage, bas: IMAGE[1] - SOL + 4 }))
+}
 
 // ── Les médailles : la grande image de leur notification, la médaille gagnée sur l'asphalte (src/medailles.ts) ──
 

@@ -2,6 +2,7 @@
 // dépasse tombe. Il s'ouvre en touchant un chantier en cours et annonce la fin de ce chantier. Les règles (nouvellePartie,
 // avancer, poser) ne dessinent rien, pour être testées ; le dessin suit.
 import { echapper } from './chantier'
+import { BOITE } from './equipe'
 import { ouvrirFeuille } from './fiche'
 import type { Chantier } from './stockage'
 
@@ -187,7 +188,8 @@ export const ouvrirJeu = (c: Chantier): void => {
     cx.fillRect(0, HAUTEUR - SOL + decalage, LARGEUR, SOL + 400)
     cx.fillStyle = '#F5C542'
     for (let x = 0; x < LARGEUR; x += 24) cx.fillRect(x, HAUTEUR - SOL + 6 + decalage, 12, 2)
-    if (ouvrier.complete) cx.drawImage(ouvrier, LARGEUR - 56, HAUTEUR - SOL + decalage - 44, 44, 44)
+    // Agrandi deux fois, dans sa boîte commune (src/equipe.ts) : ses semelles sur la route.
+    if (ouvrier.complete) cx.drawImage(ouvrier, LARGEUR - 56, HAUTEUR - SOL + decalage - (BOITE.pieds + 1) * 2, BOITE.largeur * 2, BOITE.hauteur * 2)
     // Le compte, sur un cartouche sombre pour rester lisible sous un ciel de jour.
     cx.fillStyle = 'rgba(17,18,20,.75)'
     cx.fillRect(8, 10, 150, 60)

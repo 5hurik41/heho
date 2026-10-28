@@ -137,14 +137,16 @@ h3 { margin: 0; font-size: 17px; }
   text-decoration: none;
   overflow: hidden;
 }
-.ciel { position: relative; height: 150px; background: linear-gradient(var(--ciel-haut), var(--ciel-bas)); overflow: hidden; }
-/* Le sol : la même bande d'asphalte à tirets jaunes que sous la barre. */
+.ciel { position: relative; height: 210px; background: linear-gradient(var(--ciel-haut), var(--ciel-bas)); overflow: hidden; }
+/* Le sol : trottoir, bordure, puis la même chaussée à tirets jaunes que sous la barre. */
 .ciel::after {
   content: '';
   position: absolute;
   inset: auto 0 0;
-  height: 8px;
-  background: repeating-linear-gradient(90deg, var(--lampe) 0 12px, transparent 12px 24px) 0 3px / 100% 2px no-repeat, var(--route);
+  height: 16px;
+  background:
+    repeating-linear-gradient(90deg, var(--lampe) 0 8px, transparent 8px 16px) 0 10px / 100% 1px no-repeat,
+    linear-gradient(var(--trottoir, #3A3C40) 0 4px, #4A4C50 4px 5px, var(--route) 5px);
 }
 .etoiles { position: absolute; inset: 0; opacity: var(--etoiles); }
 .etoiles > i { position: absolute; width: 2px; height: 2px; background: var(--craie); animation: scintiller 4s steps(1) infinite; }
@@ -155,45 +157,50 @@ h3 { margin: 0; font-size: 17px; }
 .soleil { background: #FFE07A; border: 2px solid #FFC93A; clip-path: polygon(25% 0, 75% 0, 100% 25%, 100% 75%, 75% 100%, 25% 100%, 0 75%, 0 25%); }
 .lune { border-radius: 50%; background: #EDEAE0; box-shadow: inset var(--ombre, 6px) 0 0 0 var(--ciel-haut); }
 
-/* La rue défile à l'horizontale, au doigt ; le ciel et le sol restent en place. */
-.horizon { position: absolute; inset: 0 0 8px; overflow-x: auto; overflow-y: hidden; overscroll-behavior-x: contain; scrollbar-width: thin; scrollbar-color: var(--trait) transparent; }
-.rue { display: flex; align-items: flex-end; gap: 3px; min-width: 100%; width: max-content; height: 100%; padding: 0 10px; box-sizing: border-box; }
-.chantiers { margin-left: auto; padding-left: 12px; display: flex; align-items: flex-end; gap: 8px; }
+/* La ville au loin, en silhouettes, qui ne défile pas avec la rue. */
+.lointain { position: absolute; inset: auto 0 16px; height: 110px; background-repeat: repeat-x; background-position: left bottom; image-rendering: pixelated; }
+
+/* La rue défile à l'horizontale, au doigt ; le ciel, la ville au loin et le sol restent en place. Tout y est posé
+   au pixel près par src/chantier.ts, en images de src/pixels.ts : un pixel de dessin, un pixel CSS. */
+.horizon { position: absolute; z-index: 1; inset: 0; overflow-x: auto; overflow-y: hidden; overscroll-behavior-x: contain; scrollbar-width: thin; scrollbar-color: var(--trait) transparent; }
+.rue { position: relative; min-width: 100%; height: 100%; }
+.rue > *, .parcelle > * { position: absolute; }
+.rue img, .ouvrier img { image-rendering: pixelated; }
+.grue { z-index: 1; }
+.bat, .parcelle { z-index: 2; }
+.lampe, .lumiere, .livraison { z-index: 3; }
+.rue > .ouvrier, .decor { z-index: 4; }
+/* Dans une parcelle, l'ordre du HTML : le chantier, sa palissade, puis l'équipe devant. */
+.parcelle > .bat { z-index: 0; }
+.parcelle > .palissade { z-index: 1; }
+.parcelle > .ouvrier { z-index: 2; }
+/* Les lampadaires s'allument au coucher, un par un, de gauche à droite (--i : leur rang). */
+.lumiere { opacity: 0; transition: opacity 0.4s steps(2) calc(var(--i) * 0.35s); pointer-events: none; }
+html:not([data-lumieres="0"]) .lumiere { opacity: 1; }
 /* Une flèche au bord de la rue quand il reste à voir de ce côté ; elle disparaît au bout. */
-.defiler { position: absolute; z-index: 2; top: 38px; width: 44px; height: 44px; display: grid; place-items: center; padding: 0; border: 2px solid var(--trait); border-radius: var(--rayon); background: var(--barre); color: var(--lampe); animation: inviter 1.6s ease-in-out infinite; }
+.defiler { position: absolute; z-index: 3; top: 70px; width: 44px; height: 44px; display: grid; place-items: center; padding: 0; border: 2px solid var(--trait); border-radius: var(--rayon); background: var(--barre); color: var(--lampe); animation: inviter 1.6s ease-in-out infinite; }
 .defiler.gauche { left: 6px; }
 .defiler.droite { right: 6px; }
 .defiler.droite svg { transform: scaleX(-1); }
 @keyframes inviter { 50% { translate: -3px 0; } }
 .defiler.droite { animation-name: inviter-droite; }
 @keyframes inviter-droite { 50% { translate: 3px 0; } }
-.parcelle { display: flex; align-items: flex-end; gap: 2px; }
-.equipe { display: flex; align-items: end; }
-.ouvrier { position: relative; width: 40px; height: 40px; flex-shrink: 0; }
 .ouvrier img { position: absolute; inset: 0; width: 100%; height: 100%; }
-/* Deux images qui alternent : l'outil se lève et retombe. */
+/* Deux images qui alternent : l'outil se lève et retombe. L'ouvrier du plancher monte avec l'étage livré. */
 .ouvrier .image-2 { animation: alterner 0.9s steps(1) infinite; }
 @keyframes alterner { 0% { opacity: 0; } 50% { opacity: 1; } }
-
-/* Un bâtiment : ses étages de haut en bas, une rangée de fenêtres chacun, un liseré à la couleur du badge sur le toit. */
-.bat { position: relative; display: flex; flex-direction: column; flex-shrink: 0; padding-top: 3px; }
-.bat::after { content: ''; position: absolute; inset: 0 0 auto; height: 2px; background: var(--badge); }
-.etage { display: flex; justify-content: space-evenly; align-items: center; height: 9px; background: var(--fond); }
-.etage i { width: 4px; height: 5px; background: var(--vitre); }
-.etage i.scintille { animation: scintiller 5s steps(1) infinite; }
-.bat:not(.chantier-bat) > .etage:first-of-type, .chantier-bat > .etage:not(.vide):first-of-type { padding-top: 1px; }
-/* Les toits, tirés au sort par bâtiment. */
-.toit-antenne::before { content: ''; position: absolute; bottom: 100%; left: 50%; width: 2px; height: 10px; background: #8C8F96; }
-.toit-citerne::before { content: ''; position: absolute; bottom: 100%; left: 4px; width: 10px; height: 7px; background: #5E4B38; }
-.toit-pignon::before { content: ''; position: absolute; bottom: 100%; left: 0; right: 0; height: 7px; background: var(--fond); clip-path: polygon(0 100%, 50% 0, 100% 100%); }
-/* Un chantier en cours : les étages à faire ne sont qu'un échafaudage. */
-.chantier-bat { padding-top: 0; }
-.chantier-bat::after { display: none; }
-.etage.vide { background: repeating-linear-gradient(45deg, transparent 0 4px, #4A4D54 4px 5px); box-shadow: inset 1px 0 0 #6A6D74, inset -1px 0 0 #6A6D74; }
-.fanion { position: absolute; bottom: 100%; right: 0; width: 14px; height: 9px; margin-bottom: 1px; box-shadow: inset 2px 0 0 var(--craie); clip-path: polygon(0 0, 100% 50%, 0 100%); }
-/* Un nouvel étage monte en place ; un nouveau bâtiment s'élève depuis le sol. */
-.etage.nouveau { animation: monter 0.5s cubic-bezier(.16,1,.3,1) both; }
-@keyframes monter { from { transform: translateY(8px); opacity: 0; } to { transform: none; opacity: 1; } }
+.parcelle .ouvrier { transition: bottom 0.5s cubic-bezier(.16,1,.3,1); }
+/* La livraison de la grue : le câble descend la palette sur le dernier plancher, la lâche et remonte. */
+.livraison { width: 1px; height: 0; }
+.livraison .cable { position: absolute; top: 0; left: 0; width: 1px; height: 8px; background: #8C8F96; }
+.livraison .crochet { position: absolute; top: 8px; left: -1px; width: 3px; height: 2px; background: #FF7A2F; }
+.livraison .charge { position: absolute; top: 8px; left: -7px; opacity: 0; }
+.livraison.livre .cable { animation: cable 2.5s ease-in-out; }
+.livraison.livre .crochet { animation: crochet 2.5s ease-in-out; }
+.livraison.livre .charge { animation: charge 2.5s ease-in-out; }
+@keyframes cable { 45%, 60% { height: var(--d); } }
+@keyframes crochet { 45%, 60% { translate: 0 calc(var(--d) - 8px); } }
+@keyframes charge { 0%, 52% { opacity: 1; } 45%, 60% { translate: 0 calc(var(--d) - 8px); } 53%, 100% { opacity: 0; } }
 .bat.neuf { transform-origin: bottom; animation: elever 1s cubic-bezier(.16,1,.3,1) both; }
 @keyframes elever { from { transform: scaleY(0); } to { transform: none; } }
 .bat.envol { position: fixed; z-index: 50; margin: 0; pointer-events: none; transform-origin: center; }
@@ -217,7 +224,8 @@ h3 { margin: 0; font-size: 17px; }
 .resume { font-size: 13px; color: var(--craie-douce); }
 
 @media (prefers-reduced-motion: reduce) {
-  .ouvrier .image-2, .etoiles > i, .defiler, .etage i.scintille, .etage.nouveau, .bat.neuf, .case.pulse { animation: none; }
+  .ouvrier .image-2, .etoiles > i, .defiler, .bat.neuf, .case.pulse, .livraison * { animation: none; }
+  .lumiere, .parcelle .ouvrier { transition: none; }
 }
 
 /* ── Les chantiers ── */
@@ -354,23 +362,18 @@ h3 { margin: 0; font-size: 17px; }
 .lieu-libre .bouton { grid-column: 1 / -1; }
 
 /* ── Bloc 3 : la vie dans la rue (src/rue.ts) ── */
-.passant { position: absolute; z-index: 1; bottom: 6px; left: 0; width: 30px; height: 30px; pointer-events: none; animation: marcher 20s linear forwards; }
+.passant { position: absolute; z-index: 2; left: 0; pointer-events: none; animation: marcher 20s linear forwards; }
+.passant img { image-rendering: pixelated; }
 .passant img { position: absolute; inset: 0; width: 100%; height: 100%; }
 .passant .image-2 { animation: alterner 0.5s steps(1) infinite; }
 .passant.vers-gauche { scale: -1 1; animation-name: marcher-gauche; }
 @keyframes marcher { from { translate: -40px 0; } to { translate: calc(100cqw + 40px) 0; } }
 @keyframes marcher-gauche { from { translate: calc(100cqw + 40px) 0; } to { translate: -40px 0; } }
 .ciel { container-type: inline-size; }
-/* La grue du premier chantier en cours, derrière son bâtiment. */
-.parcelle { position: relative; }
+/* Un chantier en cours se touche : le mini-jeu. */
 .parcelle[role='button'] { cursor: pointer; }
-.grue { position: absolute; bottom: 0; left: -34px; z-index: -1; }
-.grue .fleche { transform-origin: 14px 6px; animation: pivoter 14s ease-in-out infinite; }
-.grue .crochet { transform-origin: 74px 6px; animation: balancer 3s ease-in-out infinite; }
-@keyframes pivoter { 0%, 100% { transform: scaleX(1); } 45%, 55% { transform: scaleX(.55); } }
-@keyframes balancer { 50% { transform: rotate(4deg); } }
 @media (prefers-reduced-motion: reduce) {
-  .grue .fleche, .grue .crochet, .passant .image-2 { animation: none; }
+  .passant .image-2 { animation: none; }
 }
 /* Le mini-jeu, dans la feuille du bas (src/jeu.ts). */
 canvas.jeu { align-self: center; height: min(440px, 58dvh); aspect-ratio: 300 / 440; border: 2px solid var(--trait); border-radius: var(--rayon); touch-action: manipulation; cursor: pointer; }
