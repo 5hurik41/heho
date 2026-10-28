@@ -14,10 +14,13 @@ const MARGE_MS = 5_000
 // Ces envois ne disent rien de l'avancement de la session.
 const NEUTRES = new Set(['budget', 'bilan', 'fond', 'fond-fini'])
 
+const estTest = (m: Message): boolean => m.sessionId === 'test' || m.id.startsWith('test-')
+
 export const aTraiter = (messages: Message[], etats: Map<string, EtatSession>, chantiers: { sessionId: string; date: number }[], maintenant = Date.now()): ATraiter[] => {
   const derniers = new Map<string, Message>()
   for (const m of messages) {
-    if (NEUTRES.has(m.situation)) continue
+    // Un appel de test (Réglages, /heho test) n'attend personne : aucune session ne viendrait le régler.
+    if (NEUTRES.has(m.situation) || estTest(m)) continue
     const d = derniers.get(m.sessionId)
     if (!d || m.date > d.date) derniers.set(m.sessionId, m)
   }

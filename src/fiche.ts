@@ -30,7 +30,9 @@ export const questionsAppel = (m: Message): string =>
         .join('')}</div>`
     : ''
 
-export const ficheAppel = (m: Message, historique: Message[]): string => {
+// `ouvert` : l'appel attend encore la personne ; un bouton permet de le dire réglé, ici seulement (une session sans
+// plan ne renvoie rien quand on lui répond).
+export const ficheAppel = (m: Message, historique: Message[], ouvert = false): string => {
   const envois = historique.filter(x => racineAppel(x.id) === racineAppel(m.id)).sort((a, b) => a.date - b.date)
 
   return `
@@ -47,7 +49,13 @@ export const ficheAppel = (m: Message, historique: Message[]): string => {
       ${envois
         .map(e => `<div><dt>${e.rappel ? `Rappel ${e.rappel}` : 'Appel'}</dt><dd><time datetime="${new Date(e.date).toISOString()}">${exacte(e.date)}</time></dd></div>`)
         .join('')}
-    </dl>`
+    </dl>
+    ${
+      ouvert
+        ? `<button class="bouton second" type="button" id="regle">C'est réglé</button>
+           <p class="aide">Retire l'appel de « À toi » sur ce téléphone. Rien ne part vers le PC.</p>`
+        : ''
+    }`
 }
 
 export const ficheBatiment = (b: Batiment): string => `

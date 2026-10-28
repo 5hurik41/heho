@@ -19,6 +19,7 @@ import {
   ecrireReglage,
   effacerChantier,
   ecrireHeuresCalmes,
+  ecrireOuvert,
   effacerMessage,
   lireActivite,
   lireHeuresCalmes,
@@ -248,7 +249,16 @@ const historique = async (): Promise<void> => {
   ecran.querySelectorAll<HTMLElement>('article[data-fiche]').forEach(a => {
     const ouvrir = () => {
       const m = messages.find(x => x.id === a.dataset.fiche)
-      if (m) ouvrirFeuille(ficheAppel(m, messages))
+      if (!m) return
+      const corps = ouvrirFeuille(ficheAppel(m, messages, ouverts.has(appelDe(m))))
+      // « C'est réglé » : l'appel quitte « À toi » et sa notification le volet, sur ce téléphone seulement.
+      corps.querySelector('#regle')?.addEventListener('click', async () => {
+        await ecrireOuvert(m.sessionId, null, Math.max(Date.now(), m.date))
+        const reg = await navigator.serviceWorker?.getRegistration().catch(() => undefined)
+        for (const n of (await reg?.getNotifications({ tag: m.sessionId })) ?? []) n.close()
+        fermerFeuille()
+        await historique()
+      })
     }
     a.addEventListener('click', ouvrir)
     a.addEventListener('keydown', e => (e.key === 'Enter' || e.key === ' ') && e.target === a && (e.preventDefault(), ouvrir()))

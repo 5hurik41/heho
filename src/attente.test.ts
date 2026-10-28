@@ -30,6 +30,11 @@ describe('ce qui attend la personne', () => {
     expect(aTraiter(m, new Map(), [], T + 5_000).map(x => x.message.situation)).toEqual(['permission'])
   })
 
+  test('un appel de test n’attend personne', () => {
+    const m = [appel('test-123', 'question', T, { sessionId: 'test' }), appel('a-question-1-0', 'question', T, { id: 'test-456' })]
+    expect(aTraiter(m, new Map(), [], T + 5_000)).toEqual([])
+  })
+
   test('les rappels d’un même appel ne font qu’une ligne', () => {
     const r = sansRappels([appel('a-question-1-2', 'question', T + 2), appel('a-question-1-0', 'question', T), appel('b-done-1-0', 'done', T + 5)])
     expect(r.map(x => [x.message.id, x.rappels])).toEqual([['b-done-1-0', 0], ['a-question-1-2', 1]])
