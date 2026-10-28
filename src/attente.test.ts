@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'vitest'
-import { aTraiter, depuis, direFin, finEstimee, sansRappels, type EtatSession } from './attente'
+import { aTraiter, bilanDelais, depuis, direFin, dureeReception, finEstimee, retard, sansRappels, type EtatSession } from './attente'
 import { lireMessage, lireProgression, type Message } from './message'
 import { estCalme } from './stockage'
 
@@ -71,5 +71,19 @@ describe('le format des envois', () => {
     expect(lireMessage({ ...appel('a-arret-2-0', 'arret', T) })?.situation).toBe('arret')
     const p = { v: 1, type: 'progression', sessionId: 'a', session: 'S', couleur: '#cba6f7', titre: null, etapes: [], ouvriers: [], date: T, ouvert: null }
     expect(lireProgression(p)?.ouvert).toBeNull()
+  })
+})
+
+describe('la réception des envois', () => {
+  test('un appel arrivé avec plus de 30 s de retard le dit', () => {
+    expect(retard({ date: T, recu: T + 130_000 })).toBe(' · reçu 2 min 10 après')
+    expect(retard({ date: T, recu: T + 4_000 })).toBe('')
+    expect(retard({ date: T })).toBe('')
+    expect(dureeReception(120_000)).toBe('2 min')
+  })
+
+  test('le délai médian, le pire et les retards', () => {
+    expect(bilanDelais([{ delai: 2_000 }, { delai: 130_000 }, { delai: 3_000 }])).toEqual({ median: 3_000, pire: 130_000, enRetard: 1 })
+    expect(bilanDelais([])).toBeNull()
   })
 })

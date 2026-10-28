@@ -222,6 +222,25 @@ export const estCalme = (h: HeuresCalmes, date = new Date()): boolean => {
   return h.debut < h.fin ? m >= h.debut && m < h.fin : m >= h.debut || m < h.fin
 }
 
+// Les délais des derniers envois reçus, du PC au téléphone (BRIEF.md, « Envois fiables ») : Réglages en tire le
+// délai médian et le pire.
+export type Delai = { situation: string; delai: number; date: number }
+const DELAIS_MAX = 50
+
+export const noterDelai = async (situation: string, envoye: number, recu = Date.now()): Promise<void> => {
+  const db = await ouvrir()
+  const store = db.transaction(REGLAGES, 'readwrite').objectStore(REGLAGES)
+  const tous = ((await attendre(store.get('delais'))) as Delai[] | undefined) ?? []
+  // Les horloges du PC et du téléphone peuvent différer d'une seconde : un délai négatif compte pour zéro.
+  await attendre(store.put([...tous, { situation, delai: Math.max(0, recu - envoye), date: recu }].slice(-DELAIS_MAX), 'delais'))
+}
+
+export const lireDelais = async (): Promise<Delai[]> => {
+  const db = await ouvrir()
+
+  return ((await attendre(db.transaction(REGLAGES).objectStore(REGLAGES).get('delais'))) as Delai[] | undefined) ?? []
+}
+
 // La dernière erreur du service worker, que Réglages montre : le téléphone n'a pas de console à lire.
 export const noterErreur = async (texte: string, maintenant = Date.now()): Promise<void> => {
   const db = await ouvrir()

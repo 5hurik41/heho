@@ -34,6 +34,9 @@ export type Message = {
   // L'appel qui attend encore la personne dans cette session (son id sans le numéro de rappel), ou null
   // (BRIEF.md, « Appel ouvert ») ; absent d'un envoi plus ancien.
   ouvert?: string | null
+  // L'heure où le téléphone l'a reçu, notée par le service worker (le PC ne l'envoie pas) : son retard se lit
+  // contre `date`, l'heure du PC (BRIEF.md, « Envois fiables »).
+  recu?: number
 }
 
 export type Question = { texte: string; options: string[] }

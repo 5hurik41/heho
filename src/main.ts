@@ -6,7 +6,7 @@ import './style.css'
 import { animerScene, carte, CROIX, echapper, horodatage, murDuChef, placerAstres, rafraichirHeures, repeindre, scene } from './chantier'
 import { appliquer, BASCULE, cielActuel, ecrireVille, lireVille, VILLES, type Ville } from './soleil'
 import { CLE_PUBLIQUE_VAPID } from './config'
-import { aTraiter, depuis, sansRappels, type ATraiter } from './attente'
+import { aTraiter, bilanDelais, depuis, dureeReception, retard, sansRappels, type ATraiter } from './attente'
 import { fermerFeuille, ficheAppel, ficheBatiment, ficheMedaille, ouvrirFeuille, questionsAppel, vitrine } from './fiche'
 import { MEDAILLES } from './medailles'
 import { filtrer, pastilles, type Filtres } from './filtres'
@@ -22,6 +22,7 @@ import {
   ecrireOuvert,
   effacerMessage,
   lireActivite,
+  lireDelais,
   lireHeuresCalmes,
   lireOuverts,
   lireChantiers,
@@ -136,7 +137,7 @@ const blocAToi = (liste: ATraiter[]): string =>
               <span class="badge" style="background:${m.couleur}">${echapper(m.session)}</span>
               <time class="attend" data-depuis="${d}">${depuis(d)}</time>
             </div>
-            <p class="texte">${echapper(m.texte)}${rappelsDe(rappels)}</p>
+            <p class="texte">${echapper(m.texte)}${rappelsDe(rappels)}${retard(m)}</p>
             ${questionsAppel(m)}
           </div>
         </article>`,
@@ -156,7 +157,7 @@ const ligne = ({ message: m, rappels }: { message: Message; rappels: number }, o
         ${horodatage(m.date)}
         <button class="effacer" type="button" data-message="${echapper(m.id)}" aria-label="Effacer cet appel">${CROIX}</button>
       </div>
-      <p class="texte">${echapper(m.texte)}${rappelsDe(rappels)}</p>
+      <p class="texte">${echapper(m.texte)}${rappelsDe(rappels)}${retard(m)}</p>
     </div>
   </article>`
 
@@ -370,6 +371,7 @@ const reglages = async (): Promise<void> => {
     }),
   )
   const calme = await lireHeuresCalmes()
+  const delais = bilanDelais(await lireDelais())
   const heure = (m: number) => `${String(Math.floor(m / 60)).padStart(2, '0')}:${String(m % 60).padStart(2, '0')}`
   const ville = lireVille()
   const connue = VILLES.find(v => v.nom === ville.nom)
@@ -377,6 +379,20 @@ const reglages = async (): Promise<void> => {
   ecran.innerHTML = `
     <h2>Réglages</h2>
     ${lignes.join('')}
+    <section class="reglage-reception">
+      <h3>Réception des appels</h3>
+      <p class="aide">${
+        delais
+          ? `Sur les derniers envois du PC, délai médian : <strong>${dureeReception(delais.median)}</strong> ; le pire : <strong>${dureeReception(delais.pire)}</strong>${delais.enRetard ? ` ; ${delais.enRetard} arrivé${delais.enRetard > 1 ? 's' : ''} avec plus de 30 s de retard` : ''}.`
+          : 'Aucun envoi du PC reçu pour l’instant.'
+      }</p>
+      <p class="aide">Pour mesurer : <strong>/heho test</strong> au PC ; la notification dit en combien de temps elle est arrivée. Le PC garde son journal : <strong>/heho journal</strong>.</p>
+    </section>
+    <section class="carte-aide">
+      <h3>Recevoir les appels sans retard</h3>
+      <p>Android et Samsung endorment les applis pour économiser la batterie, et retardent alors leurs notifications. Pour <strong>Chrome</strong> et pour <strong>Hého</strong>, une seule fois :</p>
+      <p>Paramètres › Applis › Chrome › Batterie › <strong>Non restreinte</strong> ; puis Paramètres › Entretien de l'appareil (ou Batterie) › Limites d'utilisation en arrière-plan › <strong>Applis jamais en veille</strong> › ajoute Chrome et Hého, et vérifie qu'elles ne sont pas dans les applis en veille ni en veille prolongée.</p>
+    </section>
     <section class="reglage-calme">
       <h3>Heures calmes</h3>
       <p class="aide">Dans cette plage, seules les permissions sonnent ; les autres appels arrivent en silence.</p>

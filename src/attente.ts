@@ -68,6 +68,26 @@ export const depuis = (date: number, maintenant = Date.now()): string => {
   return `attend depuis ${Math.floor(min / 60)} h ${String(min % 60).padStart(2, '0')}`
 }
 
+// « 4 s », « 2 min 10 » : le temps d'un envoi, du PC au téléphone.
+export const dureeReception = (ms: number): string => {
+  const s = Math.max(0, Math.round(ms / 1000))
+
+  return s < 60 ? `${s} s` : `${Math.floor(s / 60)} min${s % 60 ? ` ${String(s % 60).padStart(2, '0')}` : ''}`
+}
+
+// Au-delà, un appel est arrivé en retard et le dit dans l'historique (BRIEF.md, « Envois fiables »).
+export const RETARD_MS = 30_000
+export const retard = (m: Pick<Message, 'date' | 'recu'>): string =>
+  m.recu !== undefined && m.recu - m.date > RETARD_MS ? ` · reçu ${dureeReception(m.recu - m.date)} après` : ''
+
+// Le délai médian et le pire des derniers envois, et combien sont arrivés en retard.
+export const bilanDelais = (delais: { delai: number }[]): { median: number; pire: number; enRetard: number } | null => {
+  if (!delais.length) return null
+  const tries = delais.map(d => d.delai).sort((a, b) => a - b)
+
+  return { median: tries[Math.floor(tries.length / 2)]!, pire: tries.at(-1)!, enRetard: tries.filter(d => d > RETARD_MS).length }
+}
+
 // La fin estimée d'un chantier en cours : la durée moyenne de ses étapes faites, depuis le début du plan, pour
 // chacune de celles qui restent (BRIEF.md, « Fin estimée »). Rien sans au moins une étape faite.
 export const finEstimee = (c: { debut?: number; date: number; etapes: { statut: string }[] }): number | null => {

@@ -1,6 +1,7 @@
 /// <reference lib="webworker" />
 // Le service worker : reçoit le push, montre la notification, garde le message dans l'historique.
 import { enCours, estFini, faites, image, lireForfait, lireMessage, lireProgression, lireSauvegarde, titre, type Message, type Progression } from './message'
+import { dureeReception } from './attente'
 import type { Medaille } from './medailles'
 import {
   ajouterBatiments,
@@ -14,6 +15,7 @@ import {
   lireHistorique,
   lireReglage,
   nettoyer,
+  noterDelai,
   noterErreur,
   recevoirProgression,
   retirerBatiments,
@@ -194,6 +196,7 @@ self.addEventListener('push', e => {
   if (p) {
     e.waitUntil(
       (async () => {
+        await noterDelai('progression', p.date).catch(() => undefined)
         await recevoirProgression(p)
         await noterOuvert(p.sessionId, p.ouvert, p.date, true)
         await nettoyer().catch(() => undefined)
@@ -206,14 +209,18 @@ self.addEventListener('push', e => {
 
     return
   }
-  const m = lireMessage(brut)
-  if (!m) return
+  const lu = lireMessage(brut)
+  if (!lu) return
+  // Un essai du PC (/heho test) dit son délai de réception, pour vérifier les réglages du téléphone.
+  const recu = Date.now()
+  const m = { ...lu, recu, ...(lu.id.startsWith('test-') ? { texte: `${lu.texte} Reçu en ${dureeReception(recu - lu.date)}.` } : {}) }
   e.waitUntil(
     (async () => {
       await effacerLesTermines()
       // Un lancement de tâche de fond livré après sa fin (téléphone en veille) va dans l'historique, sans écraser
       // la notification de fin : on remontre celle-ci, sans bruit (Chrome veut une notification par push).
       const fin = m.situation === 'fond' && m.tache ? (await lireHistorique()).find(x => x.tache === m.tache && x.situation === 'fond-fini') : undefined
+      await noterDelai(m.situation, m.date, recu).catch(() => undefined)
       await ajouterMessage(m)
       await noterOuvert(m.sessionId, m.ouvert, m.date, false)
       await nettoyer().catch(() => undefined)
